@@ -243,7 +243,10 @@ class SmoothedSegment(Segment):
 
 
 class Trace(SmoothedSegment):
-    """A single positive wire that could be used as microstrip trace.
+    """A single wire.
+
+    This class could be used in the positive sense, where structures represent metal, as microstrip (with a separate
+    ground plane), or in the negative sense, where structures represent the absence of metal, as slotline.
 
     It can be drawn to overlap at either end with the adjacent elements, and the overlap lengths are not counted when
     calculating the total length. This is useful to avoid double-counting when an electrical connection is formed by an
@@ -253,7 +256,7 @@ class Trace(SmoothedSegment):
     def __init__(self, outline, width, start_overlap=0, end_overlap=0, radius=None,
                  points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
         """
-        :param outline:
+        :param iterable[indexable] outline: the outline points, before smoothing; see :class:`SmoothedSegment`.
         :param float width: the width of the trace.
         :param float start_overlap: the overlap length at the start.
         :param float end_overlap: the overlap length at the end.

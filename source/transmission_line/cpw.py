@@ -7,7 +7,7 @@ from __future__ import absolute_import, division, print_function
 import gdspy
 import numpy as np
 
-from transmission_line.core import DEFAULT_POINTS_PER_RADIAN, to_point, Segment, SmoothedSegment
+from transmission_line.transmission_line import DEFAULT_POINTS_PER_RADIAN, to_point, Segment, SmoothedSegment
 
 
 class CPW(SmoothedSegment):
@@ -74,7 +74,7 @@ class CPWBlank(SmoothedSegment):
                                        round_to=round_to)
 
     def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the drawn polygon set, .
+        """Draw this structure into the given cell and return the drawn polygon set, which should contain one polygon.
 
         :param gdspy.Cell cell: the cell into which to draw the structure.
         :param point origin: the points of the drawn structure are relative to this point.
