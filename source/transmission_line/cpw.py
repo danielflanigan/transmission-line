@@ -6,9 +6,226 @@ from __future__ import absolute_import, division, print_function
 
 import gdspy
 import numpy as np
+from scipy.constants import c, epsilon_0, mu_0, pi
+from scipy.special import ellipk
 
-from transmission_line.transmission_line import DEFAULT_POINTS_PER_RADIAN, to_point, Segment, SmoothedSegment
+from transmission_line.transmission_line import (DEFAULT_POINTS_PER_RADIAN, to_point, AbstractTransmissionLine, Segment,
+                                                 SmoothedSegment)
 
+
+def half_capacitance_per_unit_length_zero_thickness(trace, gap, dielectric_constant):
+    """Return the capacitance per unit length of a zero-thickness CPW due to one semi-infinite space ending in the CPW
+    plane, ignoring the capacitance due to the other semi-infinite space.
+
+    The result depends only on the ratios of the lengths, so they can be specified in any units as long as they are all
+    the same; the capacitance is returned in F/m.
+
+    :param float trace: the width of the center trace in the same units as gap.
+    :param float gap: the width of the gaps in the same units as trace.
+    :param float dielectric_constant: the relative dielectric constant of the semi-infinite space.
+    :return: the capacitance in farads per meter.
+    :rtype: float
+    """
+    k = trace / (trace + 2 * gap)
+    return 2 * epsilon_0 * dielectric_constant * ellipk(k ** 2) / ellipk(1 - k ** 2)
+
+
+def capacitance_per_unit_length_zero_thickness(trace, gap, substrate_dielectric_constant, other_dielectric_constant=1):
+    """Return the capacitance per unit length of a zero-thickness CPW in the plane separating two semi-infinite spaces
+    with the given dielectric constants.
+
+    The result depends only on the ratios of the lengths, so they can be specified in any units as long as they are all
+    the same; the capacitance is returned in F/m.
+
+    :param float trace: the width of the center trace in the same units as gap.
+    :param float gap: the width of the gaps in the same units as trace.
+    :param float substrate_dielectric_constant: the relative dielectric constant of the substrate, one semi-infinite
+                                                space.
+    :param float other_dielectric_constant: the relative dielectric constant of the other semi-infinite space; by
+                                            default this equals 1, corresponding to vacuum.
+    :return: the capacitance in farads per meter.
+    :rtype: float
+    """
+    k = trace / (trace + 2 * gap)
+    effective_dielectric_constant = (substrate_dielectric_constant + other_dielectric_constant) / 2
+    return 4 * epsilon_0 * effective_dielectric_constant * ellipk(k ** 2) / ellipk(1 - k ** 2)
+
+
+def geometric_inductance_per_unit_length_zero_thickness(trace, gap):
+    """Return the geometric inductance per unit length of a zero-thickness CPW with the given geometry.
+
+    The result depends only on the ratios of the lengths, so they can be specified in any units as long as they are all
+    the same; the inductance is returned in H/m. The surrounding materials are assumed to have relative permeability
+    equal to 1.
+
+    :param float trace: the width of the center trace in the same units as gap.
+    :param float gap: the width of the gaps in the same units as trace.
+    :return: the inductance in henries per meter.
+    :rtype: float
+    """
+    k = trace / (trace + 2 * gap)
+    return (mu_0 / 4) * ellipk(1 - k ** 2) / ellipk(k ** 2)
+
+
+# ToDo: add comments explaining these with links to thesis
+# Equations from Jiansong Gao thesis (JG)
+
+def jg_equation_327_u1(a, b, t):
+    """JG Equation 3.27"""
+    d = 2 * t / pi
+    return a + d / 2 * (1 + 3 * np.log(2) - np.log(d / a) + np.log((b - a) / (a + b)))
+
+
+def jg_equation_327_u2(a, b, t):
+    """JG Equation 3.27"""
+    d = 2 * t / pi
+    return b + d / 2 * (-1 - 3 * np.log(2) + np.log(d / b) - np.log((b - a) / (a + b)))
+
+
+def half_capacitance_per_unit_length_finite_thickness(trace, gap, thickness, dielectric_constant):
+    """Return the capacitance per unit length of a finite-thickness CPW due to one semi-infinite space ending in the CPW
+    plane, ignoring the capacitance due to the other semi-infinite space.
+
+    The result depends only on ratios of the lengths, so they can be specified in any units as long as they are all the
+    same; the capacitance is returned in F/m.
+
+    :param float trace: the width of the center trace in the same units as the other lengths.
+    :param float gap: the width of the gaps in the same units as the other lengths.
+    :param float thickness: the thickness of the metal that is inside the semi-infinite space, in the same units as the
+                            other lengths.
+    :param float dielectric_constant: the relative dielectric constant of the material filling the semi-infinite space.
+    :return: the capacitance per unit length in farads per meter due to fields in this semi-infinite space.
+    :rtype: float
+    """
+    kt = (jg_equation_327_u1(a=trace / 2, b=trace / 2 + gap, t=thickness / 2) /
+          jg_equation_327_u2(a=trace / 2, b=trace / 2 + gap, t=thickness / 2))
+    return 2 * epsilon_0 * dielectric_constant * ellipk(kt ** 2) / ellipk(1 - kt ** 2)
+
+
+def capacitance_per_unit_length_finite_thickness(trace, gap, thickness, substrate_dielectric_constant):
+    """Return the capacitance per unit length of a finite-thickness CPW on a substrate with the given dielectric
+    constant, with the remaining space assumed to be filled by vacuum.
+
+    See JG Equation 3.30.
+
+    The capacitance per unit length is given by the sum of
+    the half-capacitance per unit length of a finite-thickness CPW in vacuum;
+    the half-capacitance per unit length of a zero-thickness CPW on the substrate.
+
+    :param float trace: the width of the center trace.
+    :param float gap: the width of the gap.
+    :param float thickness: the thickness of the metal.
+    :param float dielectric_constant: the relative dielectric constant of the semi-infinite space.
+    :return: the half-capacitance in farads per meter.
+    :rtype: float
+    """
+    return (half_capacitance_per_unit_length_zero_thickness(trace=trace, gap=gap,
+                                                            dielectric_constant=substrate_dielectric_constant) +
+            half_capacitance_per_unit_length_finite_thickness(trace=trace, gap=gap, thickness=thickness,
+                                                              dielectric_constant=1))
+
+
+def geometric_inductance_per_unit_length_finite_thickness(trace, gap, thickness):
+    """Return the geometric inductance per unit length of a finite-thickness CPW.
+
+    See JG Equation 3.31
+
+    The result depends only on ratios of the lengths, so they can be specified in any units as long as they are all the
+    same; the inductance is returned in H/m. The equation calculates the parallel inductance of two half-CPWs each with
+    half the given thickness.
+
+    :param float trace: the width of the center trace in the same units as the other lengths.
+    :param float gap: the width of the gaps in the same units as the other lengths.
+    :param float thickness: the total thickness of the metal in the same units as the other lengths.
+    :return: the inductance per unit length in farads per meter.
+    :rtype: float
+    """
+    kt = (jg_equation_327_u1(a=trace / 2, b=trace / 2 + gap, t=thickness / 2) /
+          jg_equation_327_u2(a=trace / 2, b=trace / 2 + gap, t=thickness / 2))
+    return (mu_0 / 4) * ellipk(1 - kt ** 2) / ellipk(kt ** 2)
+
+
+# Equations from Rami Barends thesis (RB)
+
+def geometry_factor_trace(trace, gap, thickness):
+    """Return the kinetic inductance geometry factor for the central conducting trace of a CPW.
+
+    If the kinetic inductance of the central trace is L_k, its kinetic inductance contribution per unit length is
+      L = g_c L_k,
+    where g_c is the geometry factor returned by this function.
+
+    The trace, gap, and thickness must all be given in the same units, and the returned value will be in the inverse of
+    these units.
+
+    :param float trace: the width of the center trace.
+    :param float gap: the width of the gaps.
+    :param float thickness: the thickness of the metal.
+    :return: the geometry factor in the inverse of the length unit.
+    :rtype: float
+    """
+    k = trace / (trace + 2 * gap)
+    return (1 / (4 * trace * (1 - k ** 2) * ellipk(k ** 2) ** 2)
+            * (pi + np.log(4 * pi * trace / thickness) - k * np.log((1 + k) / (1 - k))))
+
+
+def geometry_factor_ground(trace, gap, thickness):
+    """Return the kinetic inductance geometry factor for the ground planes of a CPW.
+
+    If the kinetic inductance of the ground planes is L_k, their kinetic inductance contribution per unit length is
+      L = g_g L_k,
+    where g_g is the geometry factor returned by this function.
+
+    The trace, gap, and thickness must all be given in the same units, and the returned value will be in the inverse of
+    these units.
+
+    :param float trace: the width of the center trace.
+    :param float gap: the width of the gaps.
+    :param float thickness: the thickness of the metal.
+    :return: the geometry factor in the inverse of the length unit.
+    :rtype: float
+    """
+    k = trace / (trace + 2 * gap)
+    return (k / (4 * trace * (1 - k ** 2) * ellipk(k ** 2) ** 2)
+            * (pi + np.log(4 * pi * (trace + 2 * gap) / thickness) - (1 / k) * np.log((1 + k) / (1 - k))))
+
+
+class AbstractCPW(AbstractTransmissionLine):
+    """An abstract co-planar waveguide on a substrate, with transverse dimensions but no length.
+
+    Use this to calculate quantities like characteristic impedance or phase velocity. The CPW classes below inherit from
+    this class in order to calculate their transmission line properties.
+    """
+
+    def __init__(self, trace, gap, thickness=None, substrate_dielectric_constant=None, other_dielectric_constant=1,
+                 trace_kinetic_inductance=None, ground_kinetic_inductance=None):
+        self.trace = trace
+        self.gap = gap
+        self.thickness = thickness
+        self.substrate_dielectric_constant = substrate_dielectric_constant
+        self.other_dielectric_constant = other_dielectric_constant
+        self.trace_kinetic_inductance = trace_kinetic_inductance
+        self.ground_kinetic_inductance = ground_kinetic_inductance
+
+    def capacitance_per_unit_length(self):
+        """Return the capacitance per unit length in F/m."""
+        if self.thickness is None:
+            return capacitance_per_unit_length_zero_thickness(
+                trace=self.trace, gap=self.gap, substrate_dielectric_constant=self.substrate_dielectric_constant)
+        else:
+            return capacitance_per_unit_length_finite_thickness(
+                trace=self.trace, gap=self.gap, thickness=self.thickness,
+                substrate_dielectric_constant=self.substrate_dielectric_constant)
+
+    def geometric_inductance_per_unit_length(self):
+        """Return the geometric inductance per unit length in H/m."""
+        if self.thickness is None:
+            return geometric_inductance_per_unit_length_zero_thickness(trace=self.trace, gap=self.gap)
+        else:
+            return geometric_inductance_per_unit_length_finite_thickness(trace=self.trace, gap=self.gap,
+                                                                         thickness=self.thickness)
+
+
+# ToDo: determine how to handle the multiple inheritance for AbstractCPW and SmoothedSegment
 
 class CPW(SmoothedSegment):
     """The negative space of a segment of co-planar waveguide."""
@@ -24,7 +241,7 @@ class CPW(SmoothedSegment):
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
-        self.width = width
+        self.trace = trace
         self.gap = gap
         if radius is None:
             radius = width / 2 + gap
