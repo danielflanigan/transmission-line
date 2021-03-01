@@ -1,4 +1,5 @@
-"""This module contains classes for drawing co-planar waveguide transmission lines.
+"""This module contains equations for calculating properties of co-planar waveguide transmission lines, such as their
+inductance and capacitance per unit length, and classes for drawing them as GDSII structures.
 
 Most of the classes draw structures with **negative polarity**, meaning that structures represent the absence of metal.
 """
@@ -196,8 +197,23 @@ class AbstractCPW(AbstractTransmissionLine):
     this class in order to calculate their transmission line properties.
     """
 
-    def __init__(self, trace, gap, thickness=None, substrate_dielectric_constant=None, other_dielectric_constant=1,
-                 trace_kinetic_inductance=None, ground_kinetic_inductance=None):
+    def __init__(self, trace, gap, thickness=None, substrate_dielectric_constant=1, other_dielectric_constant=1,
+                 trace_kinetic_inductance=0, ground_kinetic_inductance=0):
+        """The default values correspond to a zero-thickness CPW surrounded by vacuum with no kinetic inductance.
+
+        If thickness is None, the default, then the zero-thickness equations are used for the capacitance and the
+        geometric inductance, also, because the geometry factors cannot be calculated, the total inductance per unit
+        length equals the geometric inductance per unit length and all properties involving kinetic inductance will
+        raise ValueError.
+
+        :param float trace: the width of the center trace.
+        :param float gap: the width of the gaps.
+        :param float thickness: the thickness of the metal, default None (kinetic inductance not calculable).
+        :param float substrate_dielectric_constant: the dielectric constant of the substrate, default 1 (vacuum).
+        :param float other_dielectric_constant: the dielectric constant of the non-substrate space, default 1 (vacuum).
+        :param float trace_kinetic_inductance: the kinetic inductance of the center trace metal in henries.
+        :param float ground_kinetic_inductance: the kinetic inductance of the ground plane metal in henries.
+        """
         self.trace = trace
         self.gap = gap
         self.thickness = thickness
@@ -206,8 +222,9 @@ class AbstractCPW(AbstractTransmissionLine):
         self.trace_kinetic_inductance = trace_kinetic_inductance
         self.ground_kinetic_inductance = ground_kinetic_inductance
 
+    @property
     def capacitance_per_unit_length(self):
-        """Return the capacitance per unit length in F/m."""
+        """Return the capacitance per unit length in F/m; see :func:`capacitance_per_unit_length`."""
         if self.thickness is None:
             return capacitance_per_unit_length_zero_thickness(
                 trace=self.trace, gap=self.gap, substrate_dielectric_constant=self.substrate_dielectric_constant)
@@ -216,13 +233,51 @@ class AbstractCPW(AbstractTransmissionLine):
                 trace=self.trace, gap=self.gap, thickness=self.thickness,
                 substrate_dielectric_constant=self.substrate_dielectric_constant)
 
+    @property
     def geometric_inductance_per_unit_length(self):
-        """Return the geometric inductance per unit length in H/m."""
+        """Return the geometric inductance per unit length in H/m; see :func:`geometric_inductance_per_unit_length`."""
         if self.thickness is None:
             return geometric_inductance_per_unit_length_zero_thickness(trace=self.trace, gap=self.gap)
         else:
             return geometric_inductance_per_unit_length_finite_thickness(trace=self.trace, gap=self.gap,
                                                                          thickness=self.thickness)
+
+    @property
+    def geometry_factor_trace(self):
+        """Return the geometry factor for the center trace; see :func:`geometry_factor_trace`."""
+        return geometry_factor_trace(trace=self.trace, gap=self.gap, thickness=self.thickness)
+
+    @property
+    def geometry_factor_ground(self):
+        """Return the geometry factor for the ground planes; see :func:`geometry_factor_ground`."""
+        return geometry_factor_ground(trace=self.trace, gap=self.gap, thickness=self.thickness)
+
+    @property
+    def kinetic_inductance_per_unit_length_trace(self):
+        """Return the kinetic inductance per unit length due to the center trace; see
+        :func:`kinetic_inductance_per_unit_length_trace`.
+        """
+        return self.geometry_factor_trace * self.trace_kinetic_inductance
+
+    @property
+    def kinetic_inductance_per_unit_length_ground(self):
+        """Return the kinetic inductance per unit length due to the ground planes; see
+        :func:`kinetic_inductance_per_unit_length_ground`.
+        """
+        return self.geometry_factor_ground * self.ground_kinetic_inductance
+
+    @property
+    def kinetic_inductance_per_unit_length(self):
+        """Return the total (center trace + ground plane) kinetic inductance."""
+        return self.kinetic_inductance_per_unit_length_trace + self.kinetic_inductance_per_unit_length_ground
+
+    @property
+    def inductance_per_unit_length(self):
+        """Return the total (geometric + kinetic, if thickness is given) inductance per unit length."""
+        if self.thickness is None:
+            return self.geometric_inductance_per_unit_length
+        else:
+            return self.geometric_inductance_per_unit_length + self.kinetic_inductance_per_unit_length
 
 
 # ToDo: determine how to handle the multiple inheritance for AbstractCPW and SmoothedSegment
