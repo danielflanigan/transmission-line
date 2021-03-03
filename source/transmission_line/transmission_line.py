@@ -245,24 +245,28 @@ class SmoothedSegment(Segment):
 class AbstractTransmissionLine(object):
     """An abstract transmission line.
 
-    Subclasses should implement the methods given here to calculate inductance and capacitance per unit length.
+    Subclasses should implement the properties given here to calculate inductance and capacitance per unit length.
     """
 
+    @property
     def capacitance_per_unit_length(self):
         """Return the capacitance per unit length in farads per meter."""
         pass
 
+    @property
     def inductance_per_unit_length(self):
         """Return the inductance per unit length in henries per meter."""
         pass
 
+    @property
     def characteristic_impedance(self):
         """Return the characteristic impedance in ohms."""
-        return (self.inductance_per_unit_length() / self.capacitance_per_unit_length()) ** (1 / 2)
+        return (self.inductance_per_unit_length / self.capacitance_per_unit_length) ** (1 / 2)
 
+    @property
     def phase_velocity(self):
         """Return the phase velocity in meters per second."""
-        return (self.inductance_per_unit_length() * self.capacitance_per_unit_length()) ** (-1 / 2)
+        return (self.inductance_per_unit_length * self.capacitance_per_unit_length) ** (-1 / 2)
 
 
 class Trace(SmoothedSegment):
