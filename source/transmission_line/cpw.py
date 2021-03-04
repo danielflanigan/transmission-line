@@ -285,12 +285,12 @@ class AbstractCPW(AbstractTransmissionLine):
 class CPW(SmoothedSegment):
     """The negative space of a segment of co-planar waveguide."""
 
-    def __init__(self, outline, width, gap, radius=None, points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
+    def __init__(self, outline, trace, gap, radius=None, points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
         """Instantiating a CPW does not draw it into any cell.
 
         :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
-        :param float width: the width of the center trace.
-        :param float gap: the gaps on each side of the center trace between it and the ground planes.
+        :param float trace: the width of the center trace.
+        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
@@ -299,7 +299,7 @@ class CPW(SmoothedSegment):
         self.trace = trace
         self.gap = gap
         if radius is None:
-            radius = width / 2 + gap
+            radius = trace / 2 + gap
         super(CPW, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
                                   round_to=round_to)
 
@@ -314,8 +314,8 @@ class CPW(SmoothedSegment):
         :rtype: gdspy.PolygonSet
         """
         points = [to_point(origin) + point for point in self.points]
-        trace_flexpath = gdspy.FlexPath(points=points, width=self.width, max_points=0, gdsii_path=False)
-        gap_flexpath = gdspy.FlexPath(points=points, width=self.width + 2 * self.gap, max_points=0, gdsii_path=False)
+        trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=0, gdsii_path=False)
+        gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=0, gdsii_path=False)
         polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=0, layer=layer, datatype=datatype)
         cell.add(element=polygon_set)
         return polygon_set
@@ -327,21 +327,21 @@ class CPWBlank(SmoothedSegment):
      This is useful when the center trace is on a separate layer or has a separate datatype.
      """
 
-    def __init__(self, outline, width, gap, radius=None, points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
+    def __init__(self, outline, trace, gap, radius=None, points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
         """Instantiating a CPWBlank does not draw it into any cell.
 
         :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
-        :param float width: the width of the center trace.
-        :param float gap: the gaps on each side of the center trace between it and the ground planes.
+        :param float trace: the width of the center trace.
+        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
-        self.width = width
+        self.trace = trace
         self.gap = gap
         if radius is None:
-            radius = width / 2 + gap
+            radius = trace / 2 + gap
         super(CPWBlank, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
                                        round_to=round_to)
 
@@ -356,7 +356,7 @@ class CPWBlank(SmoothedSegment):
         :rtype: gdspy.PolygonSet
         """
         points = [to_point(origin) + point for point in self.points]
-        path_set = gdspy.FlexPath(points=points, width=self.width + 2 * self.gap, layer=layer, datatype=datatype,
+        path_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, layer=layer, datatype=datatype,
                                   max_points=0, gdsii_path=False).to_polygonset()
         cell.add(element=path_set)
         return path_set
@@ -365,7 +365,7 @@ class CPWBlank(SmoothedSegment):
 class CPWElbowCoupler(SmoothedSegment):
     """Negative co-planar waveguide elbow coupler."""
 
-    def __init__(self, tip_point, elbow_point, joint_point, width, gap, radius=None,
+    def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None,
                  points_per_radian=DEFAULT_POINTS_PER_RADIAN,
                  round_to=None):
         """Instantiating a CPWElbowCoupler does not draw it into any cell.
@@ -375,17 +375,17 @@ class CPWElbowCoupler(SmoothedSegment):
                                   segment.
         :param point joint_point: the point where the coupler joins the rest of the transmission line; the last point of
                                   the segment.
-        :param float width: the width of the center trace.
-        :param float gap: the gaps on each side of the center trace between it and the ground planes.
+        :param float trace: the width of the center trace.
+        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
-        self.width = width
+        self.trace = trace
         self.gap = gap
         if radius is None:
-            radius = width / 2 + gap
+            radius = trace / 2 + gap
         super(CPWElbowCoupler, self).__init__(outline=[tip_point, elbow_point, joint_point], radius=radius,
                                               points_per_radian=points_per_radian, round_to=round_to)
 
@@ -401,15 +401,15 @@ class CPWElbowCoupler(SmoothedSegment):
         :rtype: tuple[gdspy.PolygonSet]
         """
         points = [to_point(origin) + point for point in self.points]
-        trace_flexpath = gdspy.FlexPath(points=points, width=self.width, max_points=0, gdsii_path=False)
-        gap_flexpath = gdspy.FlexPath(points=points, width=self.width + 2 * self.gap, max_points=0, gdsii_path=False)
+        trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=0, gdsii_path=False)
+        gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=0, gdsii_path=False)
         path_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=0, layer=layer, datatype=datatype)
         cell.add(element=path_set)
 
         if round_tip:
             v = points[0] - points[1]
             theta = np.arctan2(v[1], v[0])
-            round_set = gdspy.Round(center=points[0], radius=self.width / 2 + self.gap, inner_radius=self.width / 2,
+            round_set = gdspy.Round(center=points[0], radius=self.trace / 2 + self.gap, inner_radius=self.trace / 2,
                                     initial_angle=theta - np.pi / 2, final_angle=theta + np.pi / 2, max_points=0,
                                     layer=layer, datatype=datatype)
             cell.add(element=round_set)
@@ -426,9 +426,8 @@ class CPWElbowCouplerBlank(SmoothedSegment):
      This is useful when the center trace is on a separate layer or has a separate datatype.
      """
 
-    def __init__(self, tip_point, elbow_point, joint_point, width, gap, radius=None,
-                 points_per_radian=DEFAULT_POINTS_PER_RADIAN,
-                 round_to=None):
+    def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None,
+                 points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
         """Instantiating a CPWElbowCouplerBlank does not draw it into any cell.
 
         :param point tip_point: the open end of the coupler; the first point of the segment.
@@ -436,17 +435,17 @@ class CPWElbowCouplerBlank(SmoothedSegment):
                                   segment.
         :param point joint_point: the point where the coupler joins the rest of the transmission line; the last point of
                                   the segment.
-        :param float width: the width of the center trace.
-        :param float gap: the gaps on each side of the center trace between it and the ground planes.
+        :param float trace: the width of the center trace.
+        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
-        self.width = width
+        self.trace = trace
         self.gap = gap
         if radius is None:
-            radius = width / 2 + gap
+            radius = trace / 2 + gap
         super(CPWElbowCouplerBlank, self).__init__(outline=[tip_point, elbow_point, joint_point], radius=radius,
                                                    points_per_radian=points_per_radian, round_to=round_to)
 
@@ -462,42 +461,41 @@ class CPWElbowCouplerBlank(SmoothedSegment):
         :rtype: tuple[gdspy.PolygonSet]
         """
         points = [to_point(origin) + point for point in self.points]
-        path_set = gdspy.FlexPath(points=points, width=self.width + 2 * self.gap, layer=layer, datatype=datatype,
+        path_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, layer=layer, datatype=datatype,
                                   max_points=0, gdsii_path=False).to_polygonset()
         cell.add(element=path_set)
 
         if round_tip:
             v = points[0] - points[1]
             theta = np.arctan2(v[1], v[0])
-            round_set = gdspy.Round(center=points[0], radius=self.width / 2 + self.gap, initial_angle=theta - np.pi / 2,
+            round_set = gdspy.Round(center=points[0], radius=self.trace / 2 + self.gap, initial_angle=theta - np.pi / 2,
                                     final_angle=theta + np.pi / 2, max_points=0, layer=layer, datatype=datatype)
             cell.add(element=round_set)
         else:
             raise NotImplementedError("Need to code this up.")
-
         return path_set, round_set
 
 
 class CPWTransition(Segment):
     """Negative transition between two sections of co-planar waveguide."""
 
-    def __init__(self, start_point, end_point, start_width, end_width, start_gap, end_gap, round_to=None):
+    def __init__(self, start_point, start_trace, start_gap, end_trace, end_point, end_gap, round_to=None):
         """Instantiating a CPWTransition does not draw it into any cell.
 
         The points of this structure are (start_point, end_point).
 
         :param point start_point: the start point of the transition, typically the end point of the previous section.
-        :param end_point: the end point of the transition, typically the start point of the following section.
-        :param start_width: the trace width of the previous section.
-        :param end_width: the trace width following section.
+        :param start_trace: the trace width of the previous section.
         :param start_gap: the gap width of the previous section.
+        :param end_point: the end point of the transition, typically the start point of the following section.
+        :param end_trace: the trace width of the following section.
         :param end_gap: the gap width of the following section.
         :param round_to: see :class:`SmoothedSegment`.
         """
         super(CPWTransition, self).__init__(points=[start_point, end_point], round_to=round_to)
-        self.start_width = start_width
+        self.start_trace = start_trace
         self.start_gap = start_gap
-        self.end_width = end_width
+        self.end_trace = end_trace
         self.end_gap = end_gap
 
     def draw(self, cell, origin, layer, datatype=0):
@@ -514,10 +512,10 @@ class CPWTransition(Segment):
         phi = np.arctan2(v[1], v[0])
         rotation = np.array([[np.cos(phi), -np.sin(phi)],
                              [np.sin(phi), np.cos(phi)]])
-        upper = [(0, self.start_width / 2),
-                 (0, self.start_width / 2 + self.start_gap),
-                 (self.length, self.end_width / 2 + self.end_gap),
-                 (self.length, self.end_width / 2)]
+        upper = [(0, self.start_trace / 2),
+                 (0, self.start_trace / 2 + self.start_gap),
+                 (self.length, self.end_trace / 2 + self.end_gap),
+                 (self.length, self.end_trace / 2)]
         lower = [(x, -y) for x, y in upper]
         upper_rotated = [np.dot(rotation, to_point(p).T).T for p in upper]
         lower_rotated = [np.dot(rotation, to_point(p).T).T for p in lower]
@@ -534,23 +532,23 @@ class CPWTransitionBlank(Segment):
     """Negative transition between two sections of co-planar waveguide, used when the center trace is a separate
     layer."""
 
-    def __init__(self, start_point, end_point, start_width, end_width, start_gap, end_gap, round_to=None):
+    def __init__(self, start_point, start_trace, start_gap, end_point, end_trace, end_gap, round_to=None):
         """Instantiating a CPWTransitionBlank does not draw it into any cell.
 
         The points of this structure are (start_point, end_point).
 
         :param point start_point: the start point of the transition, typically the end point of the previous section.
-        :param end_point: the end point of the transition, typically the start point of the following section.
-        :param start_width: the trace width of the previous section.
-        :param end_width: the trace width following section.
+        :param start_trace: the trace width of the previous section.
         :param start_gap: the gap width of the previous section.
+        :param end_point: the end point of the transition, typically the start point of the following section.
+        :param end_trace: the trace width of the following section.
         :param end_gap: the gap width of the following section.
         :param round_to: see :class:`SmoothedSegment`.
         """
         super(CPWTransitionBlank, self).__init__(points=[start_point, end_point], round_to=round_to)
-        self.start_width = start_width
+        self.start_trace = start_trace
         self.start_gap = start_gap
-        self.end_width = end_width
+        self.end_trace = end_trace
         self.end_gap = end_gap
 
     def draw(self, cell, origin, layer, datatype=0):
@@ -567,10 +565,10 @@ class CPWTransitionBlank(Segment):
         phi = np.arctan2(v[1], v[0])
         rotation = np.array([[np.cos(phi), -np.sin(phi)],
                              [np.sin(phi), np.cos(phi)]])
-        points = [(0, self.start_width / 2 + self.start_gap),
-                  (self.length, self.end_width / 2 + self.end_gap),
-                  (self.length, -self.end_width / 2 - self.end_gap),
-                  (0, -self.start_width / 2 - self.start_gap)]
+        points = [(0, self.start_trace / 2 + self.start_gap),
+                  (self.length, self.end_trace / 2 + self.end_gap),
+                  (self.length, -self.end_trace / 2 - self.end_gap),
+                  (0, -self.start_trace / 2 - self.start_gap)]
         points_rotated = [np.dot(rotation, to_point(p).T).T for p in points]
         points_rotated_shifted = [to_point(origin) + self.start + p for p in points_rotated]
         polygon = gdspy.Polygon(points=points_rotated_shifted, layer=layer, datatype=datatype)
@@ -590,7 +588,7 @@ class Mesh(object):
         :rtype: list[numpy.ndarray]
         """
         mesh_centers = []
-        center_to_first_row = self.width / 2 + self.gap + self.mesh_border
+        center_to_first_row = self.trace / 2 + self.gap + self.mesh_border
         # Mesh the straight sections
         starts = [self.start] + [bend[-1] for bend in self.bends]
         ends = [bend[0] for bend in self.bends] + [self.end]
@@ -640,8 +638,8 @@ class Mesh(object):
         phi = np.arctan2(v[1], v[0])
         R = np.array([[np.cos(phi), -np.sin(phi)],
                       [np.sin(phi), np.cos(phi)]])
-        start_to_first_row = self.start_width / 2 + self.start_gap + self.start_mesh_border
-        difference_to_first_row = self.end_width / 2 + self.end_gap + self.end_mesh_border - start_to_first_row
+        start_to_first_row = self.start_trace / 2 + self.start_gap + self.start_mesh_border
+        difference_to_first_row = self.end_trace / 2 + self.end_gap + self.end_mesh_border - start_to_first_row
         num_mesh_columns = int(np.floor(length / self.mesh_spacing))
         if num_mesh_columns == 0:
             return []
@@ -663,7 +661,7 @@ class Mesh(object):
 class CPWMesh(CPW, Mesh):
     """doc me!"""
 
-    def __init__(self, outline, width, gap, mesh_spacing, mesh_border, mesh_radius, num_circle_points, num_mesh_rows,
+    def __init__(self, outline, trace, gap, mesh_spacing, mesh_border, mesh_radius, num_circle_points, num_mesh_rows,
                  radius=None, points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
         """
 
