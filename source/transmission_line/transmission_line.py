@@ -11,7 +11,8 @@ from __future__ import absolute_import, division, print_function
 import gdspy
 import numpy as np
 
-
+# This is the maximum number of points in a polygon allowed by the GDSII specification.
+GDSII_POLYGON_MAX_POINTS = 8190
 DEFAULT_POINTS_PER_RADIAN = 60
 
 
@@ -131,6 +132,13 @@ class SegmentList(list):
             segment.draw(cell, point, *args, **kwargs)
             # NB: using += produces an error when casting int to float.
             point = point + segment.end
+
+    def __getitem__(self, item):
+        """Re-implement this method so that slices return SegmentLists."""
+        if isinstance(item, slice):
+            return self.__class__(super().__getitem__(item))
+        else:
+            return super().__getitem(item)
 
     @property
     def start(self):
@@ -280,11 +288,11 @@ class Trace(SmoothedSegment):
     overlap.
     """
 
-    def __init__(self, outline, width, start_overlap=0, end_overlap=0, radius=None,
+    def __init__(self, outline, trace, start_overlap=0, end_overlap=0, radius=None,
                  points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
         """
         :param iterable[indexable] outline: the outline points, before smoothing; see :class:`SmoothedSegment`.
-        :param float width: the width of the trace.
+        :param float trace: the width of the trace.
         :param float start_overlap: the overlap length at the start.
         :param float end_overlap: the overlap length at the end.
         :param radius: if None, use twice the width; see :func:`smooth`.
@@ -292,43 +300,82 @@ class Trace(SmoothedSegment):
         :param int points_per_radian: the default is DEFAULT_POINTS_PER_RADIAN; see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
-        self.width = width
+        self.trace = trace
         self.start_overlap = start_overlap
         self.end_overlap = end_overlap
         if radius is None:
-            radius = 2 * width
+            radius = 2 * trace
         super(Trace, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
                                     round_to=round_to)
 
-    def draw(self, cell, origin, layer, datatype=0, gdsii_path=True):
-        """Draw this trace into the given cell as one or several GDSII Paths or Polygons.
+    def draw(self, cell, origin, layer, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, **flexpath_keywords):
+        """Draw this trace into the given cell as a GDSII polygon (or path) and return the drawn object.
 
-        If an overlap attribute is nonzero, the corresponding overlap is drawn as an additional Path that is colinear
-        with the start or end of the main body of the Path.
+        :class:`gdspy.FlexPath` by default draws a polygon; to draw a path, pass `gdsii_path=True`. The overlap
+        regions, whose length is not counted by `self.length()`, are passed to :class:`gdspy.FlexPath` as
+        `ends=(start_overlap, end_overlap)`.
 
         :param gdspy.Cell cell: the cell into which to draw the trace.
         :param point origin: the point at which to place the start of the trace.
         :param int layer: the layer on which to draw the trace.
         :param int datatype: the GDSII datatype.
-        :param bool gdsii_path: if True, draw the element as a GDSII Path; if False, draw a Polygon.
-        :return: None.
+        :param int max_points: polygons with more than this number of points are fractured by gdspy; the default value
+                               overrides the gdspy default of 199.
+        :param flexpath_keywords: keywords passed directly to :class:`gdspy.FlexPath`.
+        :return: the drawn object.
+        :rtype: gdspy.FlexPath
         """
-        origin = to_point(origin)
-        points = [origin + point for point in self.points]
-        cell.add(element=gdspy.FlexPath(points=points, width=self.width, layer=layer, datatype=datatype, max_points=0,
-                                        gdsii_path=gdsii_path))
-        # Note that the overlap points are not stored or counted in the calculation of the length.
-        if self.start_overlap > 0:
-            v_start = points[0] - points[1]
-            phi_start = np.arctan2(v_start[1], v_start[0])
-            start_points = [points[0],
-                            points[0] + self.start_overlap * np.array([np.cos(phi_start), np.sin(phi_start)])]
-            cell.add(element=gdspy.FlexPath(points=start_points, width=self.width, layer=layer, datatype=datatype,
-                                            max_points=0, gdsii_path=gdsii_path))
-        if self.end_overlap > 0:
-            v_end = points[-1] - points[-2]
-            phi_end = np.arctan2(v_end[1], v_end[0])
-            end_points = [points[-1],
-                          points[-1] + self.end_overlap * np.array([np.cos(phi_end), np.sin(phi_end)])]
-            cell.add(element=gdspy.FlexPath(points=end_points, width=self.width, layer=layer, datatype=datatype,
-                                            max_points=0, gdsii_path=gdsii_path))
+        points = [to_point(origin) + point for point in self.points]
+        flexpath = gdspy.FlexPath(points=points, width=self.trace, layer=layer, datatype=datatype,
+                                  max_points=max_points, ends=(self.start_overlap, self.end_overlap),
+                                  **flexpath_keywords)
+        cell.add(element=flexpath)
+        return flexpath
+
+
+class TraceTransition(Segment):
+    """Transition between two Traces with different widths.
+
+    The points of this class are (start_point, end_point). It draws a single polygon in the shape of a trapezoid.
+    """
+
+    def __init__(self, start_point, start_trace, end_point, end_trace, round_to=None):
+        """Instantiate without drawing in any cell.
+
+        The points of this structure are (start_point, end_point).
+
+        :param point start_point: the start point of the transition, typically the end point of the previous section.
+        :param start_trace: the trace width of the previous section.
+        :param end_point: the end point of the transition, typically the start point of the following section.
+        :param end_trace: the trace width of the following section.
+        :param round_to: see :class:`Segment`.
+        """
+        super(NegativeCPWTransitionBlank, self).__init__(points=[start_point, end_point], round_to=round_to)
+        self.start_trace = start_trace
+        self.start_gap = start_gap
+        self.end_trace = end_trace
+        self.end_gap = end_gap
+
+    def draw(self, cell, origin, layer, datatype=0):
+        """Draw this structure into the given cell and return the one drawn polygon.
+
+        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param point origin: the points of the drawn structure are relative to this point.
+        :param int layer: the layer on which to draw.
+        :param int datatype: the GDSII datatype.
+        :return: the polygon that was drawn into the cell.
+        :rtype: gdspy.Polygon
+        """
+        v = self.end - self.start
+        phi = np.arctan2(v[1], v[0])
+        rotation = np.array([[np.cos(phi), -np.sin(phi)],
+                             [np.sin(phi), np.cos(phi)]])
+        points = [(0, self.start_trace / 2),
+                  (self.length, self.end_trace / 2),
+                  (self.length, -self.end_trace / 2),
+                  (0, -self.start_trace / 2)]
+        points_rotated = [np.dot(rotation, to_point(p).T).T for p in points]
+        points_rotated_shifted = [to_point(origin) + self.start + p for p in points_rotated]
+        polygon = gdspy.Polygon(points=points_rotated_shifted, layer=layer, datatype=datatype)
+        cell.add(element=polygon)
+        return polygon
