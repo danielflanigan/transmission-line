@@ -295,7 +295,7 @@ class NegativeCPW(SmoothedSegment):
         :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
         :param float trace: the width of the center trace.
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
-        :param radius: see :func:`smooth`.
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
@@ -303,7 +303,7 @@ class NegativeCPW(SmoothedSegment):
         self.trace = trace
         self.gap = gap
         if radius is None:
-            radius = trace / 2 + gap
+            radius = trace + gap
         super(NegativeCPW, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
                                           round_to=round_to)
 
@@ -339,7 +339,7 @@ class NegativeCPWBlank(SmoothedSegment):
         :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
         :param float trace: the width of the center trace.
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
-        :param radius: see :func:`smooth`.
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
@@ -347,7 +347,7 @@ class NegativeCPWBlank(SmoothedSegment):
         self.trace = trace
         self.gap = gap
         if radius is None:
-            radius = trace / 2 + gap
+            radius = trace + gap
         super(NegativeCPWBlank, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
                                                round_to=round_to)
 
@@ -383,7 +383,7 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
                                   the segment.
         :param float trace: the width of the center trace.
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
-        :param radius: see :func:`smooth`.
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
@@ -391,7 +391,7 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
         self.trace = trace
         self.gap = gap
         if radius is None:
-            radius = trace / 2 + gap
+            radius = trace + gap
         super(NegativeCPWElbowCoupler, self).__init__(outline=[tip_point, elbow_point, joint_point], radius=radius,
                                                       points_per_radian=points_per_radian, round_to=round_to)
 
@@ -445,7 +445,7 @@ class NegativeCPWElbowCouplerBlank(SmoothedSegment):
                                   the segment.
         :param float trace: the width of the center trace.
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
-        :param radius: see :func:`smooth`.
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
@@ -453,7 +453,7 @@ class NegativeCPWElbowCouplerBlank(SmoothedSegment):
         self.trace = trace
         self.gap = gap
         if radius is None:
-            radius = trace / 2 + gap
+            radius = trace + gap
         super(NegativeCPWElbowCouplerBlank, self).__init__(outline=[tip_point, elbow_point, joint_point], radius=radius,
                                                            points_per_radian=points_per_radian, round_to=round_to)
 
@@ -606,7 +606,7 @@ class PositiveCPW(SmoothedSegment):
         :param float trace: the width of the center trace.
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param float ground: the width of the ground planes.
-        :param radius: see :func:`smooth`.
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
@@ -615,7 +615,7 @@ class PositiveCPW(SmoothedSegment):
         self.gap = gap
         self.ground = ground
         if radius is None:
-            radius = trace / 2 + gap
+            radius = trace + gap
         super(PositiveCPW, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
                                           round_to=round_to)
 
@@ -735,7 +735,7 @@ class PositiveCPWElbowCoupler(SmoothedSegment):
                                   the segment.
         :param float trace: the width of the center trace.
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
-        :param radius: see :func:`smooth`.
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
@@ -745,7 +745,7 @@ class PositiveCPWElbowCoupler(SmoothedSegment):
         self.ground = ground
         self.strip = strip
         if radius is None:
-            radius = trace / 2 + gap
+            radius = trace + gap
         super(PositiveCPWElbowCoupler, self).__init__(outline=[tip_point, elbow_point, joint_point], radius=radius,
                                                       points_per_radian=points_per_radian, round_to=round_to)
 
