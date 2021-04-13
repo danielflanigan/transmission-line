@@ -6,7 +6,7 @@ import numpy as np
 
 import transmission_line as tl
 
-def smoothed_segment(segment, center_to_first_row, mesh_spacing, num_mesh_rows):
+def smoothed_segment(segment, center_to_first_row, mesh_spacing, num_mesh_rows, at_least_one_column=False):
     """Calculate and return the center points of a mesh surrounding a SmoothedSegment.
 
     :param tl.SmoothedSegment segment:
@@ -14,6 +14,8 @@ def smoothed_segment(segment, center_to_first_row, mesh_spacing, num_mesh_rows):
                                       the center of the first mesh row.
     :param float mesh_spacing: the approximate spacing between all mesh points, in the units used by the segment.
     :param int num_mesh_rows: the number of rows of mesh in the direction perpendicular to the segment.
+    :param bool at_least_one_column: if True, segments shorter than the mesh spacing will still have one corresponding
+                                     mesh column; otherwise, they will not.
     :return: a list of mesh center points.
     :rtype: list[point]
     """
@@ -27,7 +29,7 @@ def smoothed_segment(segment, center_to_first_row, mesh_spacing, num_mesh_rows):
         phi = np.arctan2(v[1], v[0])
         R = np.array([[np.cos(phi), -np.sin(phi)],
                       [np.sin(phi), np.cos(phi)]])
-        num_mesh_columns = int(np.floor(length / mesh_spacing))
+        num_mesh_columns = max(int(np.floor(length / mesh_spacing)), int(at_least_one_column))
         if num_mesh_columns == 0:
             continue
         elif num_mesh_columns == 1:
@@ -57,7 +59,8 @@ def smoothed_segment(segment, center_to_first_row, mesh_spacing, num_mesh_rows):
     return mesh_centers
 
 
-def transition(segment, start_center_to_first_row, end_center_to_first_row, mesh_spacing, num_mesh_rows):
+def transition(segment, start_center_to_first_row, end_center_to_first_row, mesh_spacing, num_mesh_rows,
+               at_least_one_column=False):
     """Calculate and return the center points of a mesh surrounding a single trapezoidal Segment that forms a transition
     between segments with different widths.
 
@@ -68,6 +71,8 @@ def transition(segment, start_center_to_first_row, end_center_to_first_row, mesh
                                       the center of the first mesh row at the ending side.
     :param float mesh_spacing: the approximate spacing between all mesh points, in the units used by the segment.
     :param int num_mesh_rows: the number of rows of mesh in the direction perpendicular to the segment.
+    :param bool at_least_one_column: if True, transitions shorter than the mesh spacing will still have one
+                                     corresponding mesh column; otherwise, they will not.
     :return: a list of mesh center points.
     :rtype: list[point]
     """
@@ -77,14 +82,14 @@ def transition(segment, start_center_to_first_row, end_center_to_first_row, mesh
     phi = np.arctan2(v[1], v[0])
     R = np.array([[np.cos(phi), -np.sin(phi)],
                   [np.sin(phi), np.cos(phi)]])
-    num_mesh_columns = int(np.floor(length / segment.mesh_spacing))
+    num_mesh_columns = max(int(np.floor(length / mesh_spacing)), int(at_least_one_column))
     if num_mesh_columns == 0:
         return mesh_centers
     elif num_mesh_columns == 1:
         x = np.array([length / 2])
     else:
-        x = np.linspace(segment.mesh_spacing / 2, length - segment.mesh_spacing / 2, num_mesh_columns)
-    y = segment.mesh_spacing * np.arange(segment.num_mesh_rows, dtype=np.float)
+        x = np.linspace(mesh_spacing / 2, length - mesh_spacing / 2, num_mesh_columns)
+    y = mesh_spacing * np.arange(num_mesh_rows, dtype=np.float)
     xxp, yyp = np.meshgrid(x, y)  # These correspond to the positive y-values
     y_shift = start_center_to_first_row + (end_center_to_first_row - start_center_to_first_row) * x / length
     yyp += y_shift

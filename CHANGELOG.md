@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2021-04-13
+### Added
+- PositiveCPWTransitionGround for drawing the grounds only of positive CPW.
+- PositiveCPWBlank, a placeholder that draws nothing.
+- Parameter at_least_one_column to functions in mesh.py, for ensuring short objects have one mesh column.
+- TraceTransition for drawing transitions between Traces.
+
+### Changed
+- The variable representing the width of a trace is now called `trace` throughout, particularly in Trace.
+- Slices of a SegmentList now return a SegmentList, not a list, useful for calculating intermediate distances.
+
 ## [0.3.0] - 2021-03-05
 ### Added
 - Three PositiveCPW classes for drawing the positive space of CPWs with finite ground planes.
