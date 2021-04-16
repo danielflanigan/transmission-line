@@ -5,7 +5,9 @@ The classes with name that start with 'Positive' draw the positive space, meanin
 The classes with names that start with 'Negative' draw the negative space, meaning that structures correspond to the
 absence of metal.
 """
-# ToDo: add other Dummy classes
+# ToDo: add other Postive Blank classes
+# ToDo: harmonize returned gdspy structure types: convert to PolygonSet or not?
+# ToD: Don't force round_tip=True in elbow couplers
 from __future__ import absolute_import, division, print_function
 
 import gdspy
@@ -310,7 +312,8 @@ class NegativeCPW(SmoothedSegment):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the drawn polygon set, which should contain two polygons.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -321,7 +324,8 @@ class NegativeCPW(SmoothedSegment):
         trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=0, gdsii_path=False)
         gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=0, gdsii_path=False)
         polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=0, layer=layer, datatype=datatype)
-        cell.add(element=polygon_set)
+        if cell is not None:
+            cell.add(element=polygon_set)
         return polygon_set
 
 
@@ -354,7 +358,8 @@ class NegativeCPWBlank(SmoothedSegment):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the drawn polygon set, which should contain one polygon.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -364,7 +369,8 @@ class NegativeCPWBlank(SmoothedSegment):
         points = [to_point(origin) + point for point in self.points]
         path_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, layer=layer, datatype=datatype,
                                   max_points=0, gdsii_path=False).to_polygonset()
-        cell.add(element=path_set)
+        if cell is not None:
+            cell.add(element=path_set)
         return path_set
 
 
@@ -398,7 +404,8 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
     def draw(self, cell, origin, layer, datatype=0, round_tip=True):
         """Draw this structure into the given cell and return the drawn polygon set, which should contain two polygons.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -410,7 +417,8 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
         trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=0, gdsii_path=False)
         gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=0, gdsii_path=False)
         path_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=0, layer=layer, datatype=datatype)
-        cell.add(element=path_set)
+        if cell is not None:
+            cell.add(element=path_set)
 
         if round_tip:
             v = points[0] - points[1]
@@ -418,7 +426,8 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
             round_set = gdspy.Round(center=points[0], radius=self.trace / 2 + self.gap, inner_radius=self.trace / 2,
                                     initial_angle=theta - np.pi / 2, final_angle=theta + np.pi / 2, max_points=0,
                                     layer=layer, datatype=datatype)
-            cell.add(element=round_set)
+            if cell is not None:
+                cell.add(element=round_set)
         else:
             raise NotImplementedError("Need to code this up.")
 
@@ -460,7 +469,8 @@ class NegativeCPWElbowCouplerBlank(SmoothedSegment):
     def draw(self, cell, origin, layer, datatype=0, round_tip=True):
         """Draw this structure into the given cell and return the drawn polygon set, which should contain two polygons.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -471,14 +481,16 @@ class NegativeCPWElbowCouplerBlank(SmoothedSegment):
         points = [to_point(origin) + point for point in self.points]
         path_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, layer=layer, datatype=datatype,
                                   max_points=0, gdsii_path=False).to_polygonset()
-        cell.add(element=path_set)
+        if cell is not None:
+            cell.add(element=path_set)
 
         if round_tip:
             v = points[0] - points[1]
             theta = np.arctan2(v[1], v[0])
             round_set = gdspy.Round(center=points[0], radius=self.trace / 2 + self.gap, initial_angle=theta - np.pi / 2,
                                     final_angle=theta + np.pi / 2, max_points=0, layer=layer, datatype=datatype)
-            cell.add(element=round_set)
+            if cell is not None:
+                cell.add(element=round_set)
         else:
             raise NotImplementedError("Need to code this up.")
         return path_set, round_set
@@ -512,7 +524,8 @@ class NegativeCPWTransition(Segment):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the two drawn polygons.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -534,8 +547,9 @@ class NegativeCPWTransition(Segment):
         lower_rotated_shifted = [to_point(origin) + self.start + p for p in lower_rotated]
         upper_polygon = gdspy.Polygon(points=upper_rotated_shifted, layer=layer, datatype=datatype)
         lower_polygon = gdspy.Polygon(points=lower_rotated_shifted, layer=layer, datatype=datatype)
-        cell.add(element=upper_polygon)
-        cell.add(element=lower_polygon)
+        if cell is not None:
+            cell.add(element=upper_polygon)
+            cell.add(element=lower_polygon)
         return upper_polygon, lower_polygon
 
 
@@ -571,7 +585,8 @@ class NegativeCPWTransitionBlank(Segment):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the one drawn polygon.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -589,7 +604,8 @@ class NegativeCPWTransitionBlank(Segment):
         points_rotated = [np.dot(rotation, to_point(p).T).T for p in points]
         points_rotated_shifted = [to_point(origin) + self.start + p for p in points_rotated]
         polygon = gdspy.Polygon(points=points_rotated_shifted, layer=layer, datatype=datatype)
-        cell.add(element=polygon)
+        if cell is not None:
+            cell.add(element=polygon)
         return polygon
 
 
@@ -622,7 +638,8 @@ class PositiveCPW(SmoothedSegment):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the drawn polygon set, which contains three polygons.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -638,7 +655,8 @@ class PositiveCPW(SmoothedSegment):
         negative_polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=0)
         positive_polygon_set = gdspy.boolean(ground_flexpath, negative_polygon_set, 'not', max_points=0, layer=layer,
                                              datatype=datatype)
-        cell.add(element=positive_polygon_set)
+        if cell is not None:
+            cell.add(element=positive_polygon_set)
         return positive_polygon_set
 
 
@@ -654,7 +672,8 @@ class PositiveCPWDummy(PositiveCPW):
 
         The signature is the same as :class:`PositiveCPW` for compatibility.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -673,7 +692,8 @@ class PositiveCPWTrace(PositiveCPW):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the drawn polygon set, which contains one polygon.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -684,7 +704,8 @@ class PositiveCPWTrace(PositiveCPW):
         trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=0, gdsii_path=False, layer=layer,
                                         datatype=datatype)
         positive_polygon_set = trace_flexpath.to_polygonset()
-        cell.add(element=positive_polygon_set)
+        if cell is not None:
+            cell.add(element=positive_polygon_set)
         return positive_polygon_set
 
 
@@ -698,7 +719,8 @@ class PositiveCPWGround(PositiveCPW):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the drawn polygon set, which contains two polygons.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -712,7 +734,35 @@ class PositiveCPWGround(PositiveCPW):
                                          gdsii_path=False)
         polygon_set = gdspy.boolean(ground_flexpath, trace_and_gap_flexpath, 'not', max_points=0, layer=layer,
                                     datatype=datatype)
-        cell.add(element=polygon_set)
+        if cell is not None:
+            cell.add(element=polygon_set)
+        return polygon_set
+
+
+class PositiveCPWBlank(PositiveCPW):
+    """Positive co-planar waveguide blank.
+
+    This class draws a single polygon that is the union of the center trace, gaps, and ground plane. It could be used
+    when only the borders of the entire CPW structure are needed. The interface is the same as :class:`PositiveCPW` for
+    compatibility.
+    """
+
+    def draw(self, cell, origin, layer, datatype=0):
+        """Draw this structure into the given cell and return the drawn polygon set, which contains one polygon.
+
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
+        :param point origin: the points of the drawn structure are relative to this point.
+        :param int layer: the layer on which to draw.
+        :param int datatype: the GDSII datatype.
+        :return: the object that was drawn into the cell.
+        :rtype: gdspy.PolygonSet
+        """
+        points = [to_point(origin) + point for point in self.points]
+        polygon_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground, max_points=0,
+                                     gdsii_path=False).to_polygonset()
+        if cell is not None:
+            cell.add(element=polygon_set)
         return polygon_set
 
 
@@ -752,7 +802,8 @@ class PositiveCPWElbowCoupler(SmoothedSegment):
     def draw(self, cell, origin, layer, datatype=0, round_tip=True):
         """Draw this structure into the given cell and return the drawn polygon set, which should contain one polygon.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -785,7 +836,8 @@ class PositiveCPWElbowCoupler(SmoothedSegment):
         else:
             positive_polygon_set = gdspy.boolean(ground_footprint, negative_polygon_set, 'not', max_points=0,
                                                  layer=layer, datatype=datatype)
-        cell.add(element=positive_polygon_set)
+        if cell is not None:
+            cell.add(element=positive_polygon_set)
         return positive_polygon_set
 
 
@@ -798,7 +850,8 @@ class PositiveCPWElbowCouplerTrace(PositiveCPWElbowCoupler):
     def draw(self, cell, origin, layer, datatype=0, round_tip=True):
         """Draw this structure into the given cell and return the drawn structures.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -810,14 +863,16 @@ class PositiveCPWElbowCouplerTrace(PositiveCPWElbowCoupler):
         trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=0, gdsii_path=False, layer=layer,
                                         datatype=datatype)
         polygon_set = trace_flexpath.to_polygonset()
-        cell.add(element=polygon_set)
+        if cell is not None:
+            cell.add(element=polygon_set)
         if round_tip:
             v = points[0] - points[1]
             theta = np.arctan2(v[1], v[0])
             round_set = gdspy.Round(center=points[0], radius=self.trace / 2, inner_radius=0,
                                     initial_angle=theta - np.pi / 2, final_angle=theta + np.pi / 2, max_points=0,
                                     layer=layer, datatype=datatype)
-            cell.add(element=round_set)
+            if cell is not None:
+                cell.add(element=round_set)
             return polygon_set, round_set
         else:
             return polygon_set
@@ -832,7 +887,8 @@ class PositiveCPWElbowCouplerGround(PositiveCPWElbowCoupler):
     def draw(self, cell, origin, layer, datatype=0, round_tip=True):
         """Draw this structure into the given cell and return the drawn polygon set, which should contain two polygons.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -856,7 +912,8 @@ class PositiveCPWElbowCouplerGround(PositiveCPWElbowCoupler):
         else:
             polygon_set = gdspy.boolean(ground_flexpath, trace_and_gap_flexpath, operation='not', max_points=0,
                                         layer=layer, datatype=datatype)
-        cell.add(element=polygon_set)
+        if cell is not None:
+            cell.add(element=polygon_set)
         return polygon_set
 
 
@@ -891,7 +948,8 @@ class PositiveCPWTransition(Segment):
         """Draw this structure into the given cell and return the three drawn polygons, which are the center trace and
         two ground planes.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -920,9 +978,10 @@ class PositiveCPWTransition(Segment):
         trace_polygon = gdspy.Polygon(points=trace_rotated_shifted, layer=layer, datatype=datatype)
         upper_polygon = gdspy.Polygon(points=upper_rotated_shifted, layer=layer, datatype=datatype)
         lower_polygon = gdspy.Polygon(points=lower_rotated_shifted, layer=layer, datatype=datatype)
-        cell.add(element=trace_polygon)
-        cell.add(element=upper_polygon)
-        cell.add(element=lower_polygon)
+        if cell is not None:
+            cell.add(element=trace_polygon)
+            cell.add(element=upper_polygon)
+            cell.add(element=lower_polygon)
         return trace_polygon, upper_polygon, lower_polygon
 
 
@@ -934,7 +993,8 @@ class PositiveCPWTransitionTrace(PositiveCPWTransition):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the one drawn polygon, which is the center trace.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -952,7 +1012,8 @@ class PositiveCPWTransitionTrace(PositiveCPWTransition):
         trace_rotated = [np.dot(rotation, to_point(p).T).T for p in trace]
         trace_rotated_shifted = [to_point(origin) + self.start + p for p in trace_rotated]
         trace_polygon = gdspy.Polygon(points=trace_rotated_shifted, layer=layer, datatype=datatype)
-        cell.add(element=trace_polygon)
+        if cell is not None:
+            cell.add(element=trace_polygon)
         return trace_polygon
 
 
@@ -964,7 +1025,8 @@ class PositiveCPWTransitionGround(PositiveCPWTransition):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the two drawn polygons, which are the ground planes.
 
-        :param gdspy.Cell cell: the cell into which to draw the structure.
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
@@ -986,6 +1048,7 @@ class PositiveCPWTransitionGround(PositiveCPWTransition):
         lower_rotated_shifted = [to_point(origin) + self.start + p for p in lower_rotated]
         upper_polygon = gdspy.Polygon(points=upper_rotated_shifted, layer=layer, datatype=datatype)
         lower_polygon = gdspy.Polygon(points=lower_rotated_shifted, layer=layer, datatype=datatype)
-        cell.add(element=upper_polygon)
-        cell.add(element=lower_polygon)
+        if cell is not None:
+            cell.add(element=upper_polygon)
+            cell.add(element=lower_polygon)
         return upper_polygon, lower_polygon

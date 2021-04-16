@@ -1,10 +1,12 @@
 """This module contains the core classes and functions.
 
-Internally, the package format for a point is a numpy ndarray with shape (2,). This simplifies mathematical
-operations that treat points as vectors in two dimensions. Functions and methods that require an input value to be a
-'point' will accept any indexable object with indicies 0 and 1. (Any elements with higher indices are ignored.)
-Inputs are converted to package format using :func:`to_point`, and sequences of points are converted to package
-format using :func:`to_point_list`.
+Internally, the package format for a point is a :class:`numpy.ndarray` with shape (2,). This simplifies calculations
+that treat points as vectors in two dimensions. To avoid forcing users to input points in this format, user-facing
+functions and methods convert single input points to package format using :func:`to_point`, and convert sequences of
+points using :func:`to_point_list`. The docstrings for such functions that accept two-element indexable objects
+specify this using type 'indexable' and specify iterables of such objects using type 'iterable[indexable]'. If the
+inputs must already be converted to package format, and to describe return types in package format, the documentation
+uses 'point' and 'list[point]'.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -17,11 +19,11 @@ DEFAULT_POINTS_PER_RADIAN = 60
 
 
 def to_point(indexable):
-    """Return a package-format point, a numpy ndarray with shape (2,) containing (x, y) coordinates.
+    """Return a package-format point, a :class:`numpy.ndarray` with shape (2,) containing (x, y) coordinates.
 
-    :param point indexable: an indexable object with integer indices 0 and 1, such as a two-element tuple.
+    :param indexable indexable: an indexable object with integer indices 0 and 1, such as a two-element tuple.
     :return: an array with shape (2,) containing the values at these two indices.
-    :rtype: numpy.ndarray
+    :rtype: point
     """
     return np.array([indexable[0], indexable[1]])
 
@@ -29,30 +31,31 @@ def to_point(indexable):
 def to_point_list(iterable):
     """Return a list of package-format points from using :func:`to_point` on each element of the given iterable.
 
-    This function accepts, for example, a list of two-element tuples.
+    This function accepts, for example, a list of two-element tuples, or a single ndarray with shape ``(N, 2)``, as used
+    by gdspy for polygons.
 
-    :param iterable[point] iterable: an iterable of indexable objects that all have integer indices 0 and 1.
+    :param iterable[indexable] iterable: an iterable of indexable objects that all have integer indices 0 and 1.
     :return: a list of arrays with shape ``(2,)`` containing (x, y) coordinates.
-    :rtype: list[numpy.ndarray]
+    :rtype: list[point]
     """
     return [to_point(point) for point in iterable]
 
 
 def from_increments(increments, origin=(0, 0)):
-    """Return a list of points starting from the given origin and separated by the given increments.
+    """Return a list of points starting from the given origin and separated by the given increments, treated as vectors.
 
     Specify a path in terms of the differences between points instead of the absolute values::
 
         >>> from_increments(increments=[(200, 0), (0, 300)], origin=(100, 0))
         [np.array([100, 0]), np.array([300, 0]), np.array([300, 300])]
 
-    :param iterable[point] increments: the differences between consecutive returned points.
-    :param point origin: the starting point of the list.
-    :return: a list of points in the package format.
-    :rtype: list[numpy.ndarray]
+    :param iterable[indexable] increments: the vector differences between consecutive points.
+    :param point origin: the starting point.
+    :return: a list of points in package format.
+    :rtype: list[point]
     """
     points = [to_point(origin)]
-    for increment in [to_point(point) for point in increments]:
+    for increment in to_point_list(increments):
         points.append(points[-1] + increment)
     return points
 
@@ -60,30 +63,36 @@ def from_increments(increments, origin=(0, 0)):
 
 
 # ToDo: warn if consecutive points are too close together to bend properly.
-def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN):
-    """Return a list of smoothed points constructed by adding points to change the given corners into arcs.
+def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN, already_package_format=False):
+    """Return a list of smoothed points constructed by adding points to change the given corners into circular arcs.
 
     At each corner, the original point is replaced by points that form circular arcs that are tangent to the original
-    straight sections. The returned path will not contain any of the given points except for the starting and ending
-    points, because all of the interior points will be replaced.
+    straight sections. Because this process replaces all of the interior points, the returned path will not contain any
+    of the given points except for the start and end.
 
-    If the given radius is too large there is no way to make this work, and the results will be ugly. **No warning is
-    currently given when this happens, so you need to inspect your design.** The given radius should be smaller than
-    about half the length of the shorted straight section. If several points lie on the same line, the redundant ones
-    are removed.
+    If the given radius is too large compared to the lengt of the straight sections there is no way to make this
+    work, and the results will be ugly. **No warning is currently given when this happens, so you need to inspect
+    your design.** The given radius should be smaller than about half the length of the shortest straight section. If
+    several points lie on the same line, the redundant ones are removed.
 
-    :param points: a list of points in package format.
-    :type points: iterable[indexable]
+    :param iterable[indexable] points: a list of points forming the outline of the path to smooth.
     :param float radius: the radius of the circular arcs used to connect the straight segments.
     :param int points_per_radian: the number of points per radian of arc; the default of 60 (about 1 per degree) is
                                   usually enough.
-    :return: a list of smoothed points.
-    :rtype: list[numpy.ndarray]
+    :param bool already_package_format: if True, skip the conversion of the points to package format (used internally
+                                        by :class:`SmoothedSegment` to avoid double-conversion.
+    :return: four lists with length equal to the number of bends (i.e. two less than the number of given points)
+             that contain, for each bend, (1) a list of points in that bend, (2) the bend angle in radians, (3) the
+             corner point  from the original list, and (4) the vector offset of the bend arc center relative to the
+             corner point.
+    :rtype: tuple[list]
     """
-    bends = []
-    angles = []
-    corners = []
-    offsets = []
+    bends = list()
+    angles = list()
+    corners = list()
+    offsets = list()
+    if not already_package_format:
+        points = to_point_list(points)
     for before, current, after in zip(points[:-2], points[1:-1], points[2:]):
         before_to_current = current - before
         current_to_after = after - current
@@ -110,28 +119,31 @@ def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN):
 
 
 class SegmentList(list):
-    """A list subclass for Segments that are joined sequentially to form a path."""
+    """A list subclass to contain Segments that can be drawn sequentially to form a path."""
 
-    # def draw(self, cell, origin, positive_layer, negative_layer, result_layer):
     def draw(self, cell, origin, *args, **kwargs):
-        """Draw all of the Segments contained in this SegmentList into the given cell, connected head to tail.
+        """Draw all of the segments contained in this SegmentList into the given cell, connected head to tail, and
+        and return the drawn structures.
 
-        The Segments are drawn so that the origin of each segment after the first is the end of the previous segment.
+        The segments are drawn as follows: the origin of the first segment is the given origin, and the origin of
+        each subsequent segment is the end of the previous segment.
 
-        :param cell: The cell into which the result is drawn.
-        :type cell: Cell
-        :param origin: The point to use for the origin of the first Segment.
-        :type origin: indexable
-        :param args: arguments passed to :meth:`Segment.draw`.
-        :param kwargs: keyword arguments passed to :meth:`Segment.draw`.
-        :return: None.
+        :param cell: The cell into which the result is drawn, if not None.
+        :type cell: gdspy.Cell or None
+        :param indexable origin: The point to use for the origin of the first Segment.
+        :param args: arguments passed to every :meth:`Segment.draw`.
+        :param kwargs: keyword arguments passed to every :meth:`Segment.draw`.
+        :return: the drawn structures ordered from start to end.
+        :rtype: list
         """
+        drawn = list()
         # It's crucial to avoiding input modification that this also makes a copy.
         point = to_point(origin)
         for segment in self:
-            segment.draw(cell, point, *args, **kwargs)
+            drawn.append(segment.draw(cell, point, *args, **kwargs))
             # NB: using += produces an error when casting int to float.
             point = point + segment.end
+        return drawn
 
     def __getitem__(self, item):
         """Re-implement this method so that slices return SegmentLists."""
@@ -157,18 +169,21 @@ class SegmentList(list):
 
     @property
     def length(self):
-        """The sum of the lengths of the Segments in this SegmentList."""
+        """The sum of the lengths of the Segments in this SegmentList.
+
+        This uses the `length` property of each individual Segment and does not check that the Segments are all
+        connected head-to-tail.
+        """
         return np.sum([element.length for element in self])
 
 
 class Segment(object):
-    """An element of a SegmentList that can draw itself into a cell."""
+    """An element in a SegmentList that can draw itself into a cell."""
 
     def __init__(self, points, round_to=None):
         """The given points are saved as :attr:`_points`, and should generally not be modified.
 
-        :param points: the points that form the Segment.
-        :type points: iterable[indexable]
+        :param iterable[indexable] points: the points that form the Segment.
         :param round_to: if not None, the coordinates of each point are rounded to this value; useful for ensuring that
                          all the points in a design lie on a grid (larger than the database unit size).
         :type round_to: float, int, or None
@@ -209,19 +224,22 @@ class Segment(object):
         return np.sum(np.hypot(np.diff(self.x), np.diff(self.y)))
 
     def draw(self, cell, origin, **kwargs):
-        """Draw this Segment in the given cell.
+        """Draw this Segment in the given cell, if one is specified.
 
-        Subclasses implement this method to draw themselves.
+        Subclasses implement this method to draw themselves. They should return the drawn structure(s). If possible,
+        passing `cell=None` should draw the structure without adding it to a cell. This is useful for temporary
+        structures used for boolean operations, for example.
 
-        :param Cell cell: the cell into which this segment will be drawn.
+        :param cell: the cell into which this segment will be drawn.
+        :type cell: gdspy.Cell or None
         :param indexable origin: draw the segment relative to this point; the meaning depends on the segment type.
-        :return: None.
+        :return: None, but subclasses should return an iterable of the drawn structure(s).
         """
         pass
 
 
 class SmoothedSegment(Segment):
-    """An element of a SegmentList that can draw itself into a cell, with corners smoothed using :func:`smooth`."""
+    """An element in a SegmentList that can draw itself into a cell, with corners smoothed using :func:`smooth`."""
 
     def __init__(self, outline, radius, points_per_radian, round_to=None):
         """The given outline points are passed to :func:`smooth` and the result is stored in the instance attributes
@@ -242,7 +260,7 @@ class SmoothedSegment(Segment):
 
     @property
     def points(self):
-        """The smoothed points (``list[numpy.ndarray]``); the outline points are ``_points`` (read-only)."""
+        """The smoothed points (``list[numpy.ndarray]``); the original outline points are ``_points`` (read-only)."""
         p = [self.start]
         for bend in self.bends:
             p.extend(bend)
@@ -275,107 +293,3 @@ class AbstractTransmissionLine(object):
     def phase_velocity(self):
         """Return the phase velocity in meters per second."""
         return (self.inductance_per_unit_length * self.capacitance_per_unit_length) ** (-1 / 2)
-
-
-class Trace(SmoothedSegment):
-    """A single wire.
-
-    This class could be used in the positive sense, where structures represent metal, as microstrip (with a separate
-    ground plane), or in the negative sense, where structures represent the absence of metal, as slotline.
-
-    It can be drawn to overlap at either end with the adjacent elements, and the overlap lengths are not counted when
-    calculating the total length. This is useful to avoid double-counting when an electrical connection is formed by an
-    overlap.
-    """
-
-    def __init__(self, outline, trace, start_overlap=0, end_overlap=0, radius=None,
-                 points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
-        """
-        :param iterable[indexable] outline: the outline points, before smoothing; see :class:`SmoothedSegment`.
-        :param float trace: the width of the trace.
-        :param float start_overlap: the overlap length at the start.
-        :param float end_overlap: the overlap length at the end.
-        :param radius: if None, use twice the width; see :func:`smooth`.
-        :type radius: float or None
-        :param int points_per_radian: the default is DEFAULT_POINTS_PER_RADIAN; see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
-        """
-        self.trace = trace
-        self.start_overlap = start_overlap
-        self.end_overlap = end_overlap
-        if radius is None:
-            radius = 2 * trace
-        super(Trace, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
-                                    round_to=round_to)
-
-    def draw(self, cell, origin, layer, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, **flexpath_keywords):
-        """Draw this trace into the given cell as a GDSII polygon (or path) and return the drawn object.
-
-        :class:`gdspy.FlexPath` by default draws a polygon; to draw a path, pass `gdsii_path=True`. The overlap
-        regions, whose length is not counted by `self.length()`, are passed to :class:`gdspy.FlexPath` as
-        `ends=(start_overlap, end_overlap)`.
-
-        :param gdspy.Cell cell: the cell into which to draw the trace.
-        :param point origin: the point at which to place the start of the trace.
-        :param int layer: the layer on which to draw the trace.
-        :param int datatype: the GDSII datatype.
-        :param int max_points: polygons with more than this number of points are fractured by gdspy; the default value
-                               overrides the gdspy default of 199.
-        :param flexpath_keywords: keywords passed directly to :class:`gdspy.FlexPath`.
-        :return: the drawn object.
-        :rtype: gdspy.FlexPath
-        """
-        points = [to_point(origin) + point for point in self.points]
-        flexpath = gdspy.FlexPath(points=points, width=self.trace, layer=layer, datatype=datatype,
-                                  max_points=max_points, ends=(self.start_overlap, self.end_overlap),
-                                  **flexpath_keywords)
-        cell.add(element=flexpath)
-        return flexpath
-
-
-class TraceTransition(Segment):
-    """Transition between two Traces with different widths.
-
-    The points of this class are (start_point, end_point). It draws a single polygon in the shape of a trapezoid.
-    """
-
-    def __init__(self, start_point, start_trace, end_point, end_trace, round_to=None):
-        """Instantiate without drawing in any cell.
-
-        The points of this structure are (start_point, end_point).
-
-        :param point start_point: the start point of the transition, typically the end point of the previous section.
-        :param start_trace: the trace width of the previous section.
-        :param end_point: the end point of the transition, typically the start point of the following section.
-        :param end_trace: the trace width of the following section.
-        :param round_to: see :class:`Segment`.
-        """
-        super(NegativeCPWTransitionBlank, self).__init__(points=[start_point, end_point], round_to=round_to)
-        self.start_trace = start_trace
-        self.start_gap = start_gap
-        self.end_trace = end_trace
-        self.end_gap = end_gap
-
-    def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the one drawn polygon.
-
-        :param gdspy.Cell cell: the cell into which to draw the structure.
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :return: the polygon that was drawn into the cell.
-        :rtype: gdspy.Polygon
-        """
-        v = self.end - self.start
-        phi = np.arctan2(v[1], v[0])
-        rotation = np.array([[np.cos(phi), -np.sin(phi)],
-                             [np.sin(phi), np.cos(phi)]])
-        points = [(0, self.start_trace / 2),
-                  (self.length, self.end_trace / 2),
-                  (self.length, -self.end_trace / 2),
-                  (0, -self.start_trace / 2)]
-        points_rotated = [np.dot(rotation, to_point(p).T).T for p in points]
-        points_rotated_shifted = [to_point(origin) + self.start + p for p in points_rotated]
-        polygon = gdspy.Polygon(points=points_rotated_shifted, layer=layer, datatype=datatype)
-        cell.add(element=polygon)
-        return polygon

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2021-04-16
+### Changed
+- SegmentList.draw() now returns a list of the drawn structures.
+- All `draw` methods now accept `cell=None` to create structures without adding them to a cell.
+- PositiveCPWBlank now draws all the union of trace, gaps, and grounds.
+
+### Added
+- trace.py containing Trace and TraceTransition.
+- PositiveCPWDummy, a placeholder that draws nothing.
+
 ## [0.4.1] - 2021-04-13
 ### Changed
 - CPW default bend radius now equals trace + gap to avoid sharp corners.
