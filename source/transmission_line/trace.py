@@ -6,6 +6,7 @@ ground plane), or in the negative sense, where structures represent the absence 
 from __future__ import absolute_import, division, print_function
 
 import gdspy
+import numpy as np
 
 from transmission_line.transmission_line import (DEFAULT_POINTS_PER_RADIAN, GDSII_POLYGON_MAX_POINTS, Segment,
                                                  SmoothedSegment, smooth, to_point)
@@ -65,6 +66,14 @@ class Trace(SmoothedSegment):
         return flexpath
 
 
+class TraceBlank(Trace):
+    """A placeholder for a single wire that draws nothing."""
+
+    def draw(self, cell, origin, layer, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, **flexpath_keywords):
+        """Do nothing and return nothing."""
+        pass
+
+
 class TraceTransition(Segment):
     """Transition between two Traces with different widths.
 
@@ -84,9 +93,7 @@ class TraceTransition(Segment):
         """
         super(TraceTransition, self).__init__(points=[start_point, end_point], round_to=round_to)
         self.start_trace = start_trace
-        self.start_gap = start_gap
         self.end_trace = end_trace
-        self.end_gap = end_gap
 
     def draw(self, cell, origin, layer, datatype=0):
         """Draw this structure into the given cell and return the one drawn polygon.
