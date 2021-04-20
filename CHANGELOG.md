@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [unreleased]
 ### Fixed
 - Removed spurious start_gap and end_gap in TraceTransition.
+- Missing layer in PositiveCPWBlank.
 
 ## [0.4.2] - 2021-04-16
 ### Changed

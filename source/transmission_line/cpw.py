@@ -760,7 +760,7 @@ class PositiveCPWBlank(PositiveCPW):
         """
         points = [to_point(origin) + point for point in self.points]
         polygon_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground, max_points=0,
-                                     gdsii_path=False).to_polygonset()
+                                     layer=layer).to_polygonset()
         if cell is not None:
             cell.add(element=polygon_set)
         return polygon_set
