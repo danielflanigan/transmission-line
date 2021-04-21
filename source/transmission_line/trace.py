@@ -120,3 +120,12 @@ class TraceTransition(Segment):
         if cell is not None:
             cell.add(element=polygon)
         return polygon
+
+
+class TraceTransitionBlank(TraceTransition):
+    """A placeholder for a single wire transition that draws nothing."""
+
+    def draw(self, cell, origin, layer, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, **flexpath_keywords):
+        """Do nothing and return nothing."""
+        pass
+
