@@ -119,9 +119,13 @@ def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN, already_
 
 
 class SegmentList(list):
-    """A list subclass to contain Segments that can be drawn sequentially to form a path."""
+    """A list subclass to contain Segments that can be drawn sequentially to form a path.
 
-    def draw(self, cell, origin, *args, **kwargs):
+    Slicing a SegmentList returns a SegmentList so that intermediate points can be computed easily:
+    ``segment_list[:4].end`` gives the endpoint of the first four elements joined head to tail.
+    """
+
+    def draw(self, cell, origin, individual_keywords=None, **global_keywords):
         """Draw all of the segments contained in this SegmentList into the given cell, connected head to tail, and
         and return the drawn structures.
 
@@ -131,16 +135,22 @@ class SegmentList(list):
         :param cell: The cell into which the result is drawn, if not None.
         :type cell: gdspy.Cell or None
         :param indexable origin: The point to use for the origin of the first Segment.
-        :param args: arguments passed to every :meth:`Segment.draw`.
-        :param kwargs: keyword arguments passed to every :meth:`Segment.draw`.
+        :param individual_keywords: keys are integer indices and values are dicts of parameters that update the
+                                    the :meth:`draw` call for the Segment at that index; use this to override the global
+                                    keywords or to pass keywords that not all Segments accept.
+        :type individual_keywords: dict or None
+        :param global_keywords: keyword arguments passed to every :meth:`Segment.draw`.
         :return: the drawn structures ordered from start to end.
         :rtype: list
         """
         drawn = list()
         # It's crucial to avoiding input modification that this also makes a copy.
         point = to_point(origin)
-        for segment in self:
-            drawn.append(segment.draw(cell, point, *args, **kwargs))
+        for index, segment in enumerate(self):
+            keywords = global_keywords.copy()
+            if individual_keywords is not None:
+                keywords.update(individual_keywords.get(index, dict()))
+            drawn.append(segment.draw(cell, point, **keywords))
             # NB: using += produces an error when casting int to float.
             point = point + segment.end
         return drawn
@@ -150,7 +160,7 @@ class SegmentList(list):
         if isinstance(item, slice):
             return self.__class__(super().__getitem__(item))
         else:
-            return super().__getitem(item)
+            return super().__getitem__(item)
 
     @property
     def start(self):

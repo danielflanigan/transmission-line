@@ -5,7 +5,7 @@ The classes with name that start with 'Positive' draw the positive space, meanin
 The classes with names that start with 'Negative' draw the negative space, meaning that structures correspond to the
 absence of metal.
 """
-# ToDo: add other Postive Blank classes
+# ToDo: add other Positive Blank classes
 # ToDo: harmonize returned gdspy structure types: convert to PolygonSet or not?
 # ToD: Don't force round_tip=True in elbow couplers
 from __future__ import absolute_import, division, print_function
@@ -1052,3 +1052,17 @@ class PositiveCPWTransitionGround(PositiveCPWTransition):
             cell.add(element=upper_polygon)
             cell.add(element=lower_polygon)
         return upper_polygon, lower_polygon
+
+
+class PositiveCPWTransitionDummy(PositiveCPWTransition):
+    """Placeholder for positive co-planar waveguide transition with finite ground planes: does not draw any structures.
+
+    This class does not draw either the center trace or the ground planes so it is useful only as a placeholder or
+    in a :class:`SegmentList` when structures are on multiple layers or have multiple datatypes.
+    """
+
+    def draw(self, cell, origin, layer, datatype=0):
+        """Draw nothing and return nothing."""
+        pass
+
+
