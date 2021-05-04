@@ -70,7 +70,7 @@ def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN, already_
     straight sections. Because this process replaces all of the interior points, the returned path will not contain any
     of the given points except for the start and end.
 
-    If the given radius is too large compared to the lengt of the straight sections there is no way to make this
+    If the given radius is too large compared to the length of the straight sections there is no way to make this
     work, and the results will be ugly. **No warning is currently given when this happens, so you need to inspect
     your design.** The given radius should be smaller than about half the length of the shortest straight section. If
     several points lie on the same line, the redundant ones are removed.
@@ -150,7 +150,7 @@ class SegmentList(list):
             keywords = global_keywords.copy()
             if individual_keywords is not None:
                 keywords.update(individual_keywords.get(index, dict()))
-            drawn.append(segment.draw(cell, point, **keywords))
+            drawn.append(segment.draw(cell=cell, origin=point, **keywords))
             # NB: using += produces an error when casting int to float.
             point = point + segment.end
         return drawn
@@ -261,12 +261,13 @@ class SmoothedSegment(Segment):
         :param round_to: if not None, the coordinates of each outline point are rounded to this value **before
                          smoothing**; useful for ensuring that all the points in a design lie on a grid larger than the
                          database unit size.
-        :type round_to: float or None
+        :type round_to: float, int, or None
         """
         super(SmoothedSegment, self).__init__(points=outline, round_to=round_to)
         self.radius = radius
         self.points_per_radian = points_per_radian
-        self.bends, self.angles, self.corners, self.offsets = smooth(self._points, radius, points_per_radian)
+        self.bends, self.angles, self.corners, self.offsets = smooth(self._points, radius, points_per_radian,
+                                                                     already_package_format=True)
 
     @property
     def points(self):

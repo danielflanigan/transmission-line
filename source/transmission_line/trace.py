@@ -39,7 +39,7 @@ class Trace(SmoothedSegment):
         super(Trace, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
                                     round_to=round_to)
 
-    def draw(self, cell, origin, layer, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, **flexpath_keywords):
+    def draw(self, cell, origin, layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, gdsii_path=False):
         """Draw this trace into the given cell as a GDSII polygon (or path) and return the drawn object.
 
         By default, :class:`gdspy.FlexPath` draws a polygon; to draw a path, pass `gdsii_path=True`. The overlap
@@ -53,14 +53,14 @@ class Trace(SmoothedSegment):
         :param int datatype: the GDSII datatype.
         :param int max_points: polygons with more than this number of points are fractured by gdspy; the default value
                                overrides the gdspy default of 199.
-        :param flexpath_keywords: keywords passed directly to :class:`gdspy.FlexPath`.
+        :param bool gdsii_path: passed to :class:`gdspy.FlexPath`; if True, draw a path; if False, draw a polygon.
         :return: the drawn object.
         :rtype: gdspy.FlexPath
         """
         points = [to_point(origin) + point for point in self.points]
         flexpath = gdspy.FlexPath(points=points, width=self.trace, layer=layer, datatype=datatype,
                                   max_points=max_points, ends=(self.start_overlap, self.end_overlap),
-                                  **flexpath_keywords)
+                                  gdsii_path=gdsii_path)
         if cell is not None:
             cell.add(element=flexpath)
         return flexpath
@@ -69,8 +69,8 @@ class Trace(SmoothedSegment):
 class TraceBlank(Trace):
     """A placeholder for a single wire that draws nothing."""
 
-    def draw(self, cell, origin, layer, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, **flexpath_keywords):
-        """Do nothing and return nothing."""
+    def draw(self, cell, origin, layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, gdsii_path=False):
+        """Draw nothing and return nothing."""
         pass
 
 
@@ -95,7 +95,7 @@ class TraceTransition(Segment):
         self.start_trace = start_trace
         self.end_trace = end_trace
 
-    def draw(self, cell, origin, layer, datatype=0):
+    def draw(self, cell, origin, layer=0, datatype=0):
         """Draw this structure into the given cell and return the one drawn polygon.
 
         :param cell: the cell into which to draw the transition, if not None.
@@ -125,7 +125,6 @@ class TraceTransition(Segment):
 class TraceTransitionBlank(TraceTransition):
     """A placeholder for a single wire transition that draws nothing."""
 
-    def draw(self, cell, origin, layer, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, **flexpath_keywords):
-        """Do nothing and return nothing."""
+    def draw(self, cell, origin, layer=0, datatype=0):
+        """Draw nothing and return nothing."""
         pass
-
