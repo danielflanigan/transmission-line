@@ -39,7 +39,8 @@ class Trace(SmoothedSegment):
         super(Trace, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
                                     round_to=round_to)
 
-    def draw(self, cell, origin, layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, gdsii_path=False):
+    def draw(self, cell, origin, what='default', layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS,
+             gdsii_path=False):
         """Draw this trace into the given cell as a GDSII polygon (or path) and return the drawn object.
 
         By default, :class:`gdspy.FlexPath` draws a polygon; to draw a path, pass `gdsii_path=True`. The overlap
@@ -49,6 +50,7 @@ class Trace(SmoothedSegment):
         :param cell: the cell into which to draw the trace, if not None.
         :type cell: gdspy.Cell or None
         :param point origin: the point at which to place the start of the trace.
+        :param str what: if 'default', return the trace polygon; if 'none', do nothing and return None.
         :param int layer: the GDSII layer.
         :param int datatype: the GDSII datatype.
         :param int max_points: polygons with more than this number of points are fractured by gdspy; the default value
@@ -56,22 +58,20 @@ class Trace(SmoothedSegment):
         :param bool gdsii_path: passed to :class:`gdspy.FlexPath`; if True, draw a path; if False, draw a polygon.
         :return: the drawn object.
         :rtype: gdspy.FlexPath
+        :raises ValueError: if the argument of 'what' is not recognized.
         """
-        points = [to_point(origin) + point for point in self.points]
-        flexpath = gdspy.FlexPath(points=points, width=self.trace, layer=layer, datatype=datatype,
-                                  max_points=max_points, ends=(self.start_overlap, self.end_overlap),
-                                  gdsii_path=gdsii_path)
-        if cell is not None:
-            cell.add(element=flexpath)
-        return flexpath
-
-
-class TraceBlank(Trace):
-    """A placeholder for a single wire that draws nothing."""
-
-    def draw(self, cell, origin, layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, gdsii_path=False):
-        """Draw nothing and return nothing."""
-        pass
+        if what == 'none':
+            return
+        elif what == 'default':
+            points = [to_point(origin) + point for point in self.points]
+            flexpath = gdspy.FlexPath(points=points, width=self.trace, layer=layer, datatype=datatype,
+                                      max_points=max_points, ends=(self.start_overlap, self.end_overlap),
+                                      gdsii_path=gdsii_path)
+            if cell is not None:
+                cell.add(element=flexpath)
+            return flexpath
+        else:
+            raise ValueError("Invalid argument to 'what': {}.".format(what))
 
 
 class TraceTransition(Segment):
@@ -95,36 +95,35 @@ class TraceTransition(Segment):
         self.start_trace = start_trace
         self.end_trace = end_trace
 
-    def draw(self, cell, origin, layer=0, datatype=0):
+    def draw(self, cell, origin, what='default', layer=0, datatype=0):
         """Draw this structure into the given cell and return the one drawn polygon.
 
         :param cell: the cell into which to draw the transition, if not None.
         :type cell: gdspy.Cell or None
         :param point origin: the points of the structure are relative to this point.
+        :param str what: if 'default', return the transition polygon; if 'none', do nothing and return None.
         :param int layer: the GDSII layer.
         :param int datatype: the GDSII datatype.
         :return: the drawn polygon.
-        :rtype: gdspy.Polygon
+        :rtype: gdspy.Polygon or None
+        :raises ValueError: if the argument of 'what' is not recognized.
         """
-        v = self.end - self.start
-        phi = np.arctan2(v[1], v[0])
-        rotation = np.array([[np.cos(phi), -np.sin(phi)],
-                             [np.sin(phi), np.cos(phi)]])
-        points = [(0, self.start_trace / 2),
-                  (self.length, self.end_trace / 2),
-                  (self.length, -self.end_trace / 2),
-                  (0, -self.start_trace / 2)]
-        points_rotated = [np.dot(rotation, to_point(p).T).T for p in points]
-        points_rotated_shifted = [to_point(origin) + self.start + p for p in points_rotated]
-        polygon = gdspy.Polygon(points=points_rotated_shifted, layer=layer, datatype=datatype)
-        if cell is not None:
-            cell.add(element=polygon)
-        return polygon
-
-
-class TraceTransitionBlank(TraceTransition):
-    """A placeholder for a single wire transition that draws nothing."""
-
-    def draw(self, cell, origin, layer=0, datatype=0):
-        """Draw nothing and return nothing."""
-        pass
+        if what == 'none':
+            return
+        elif what == 'default':
+            v = self.end - self.start
+            phi = np.arctan2(v[1], v[0])
+            rotation = np.array([[np.cos(phi), -np.sin(phi)],
+                                 [np.sin(phi), np.cos(phi)]])
+            points = [(0, self.start_trace / 2),
+                      (self.length, self.end_trace / 2),
+                      (self.length, -self.end_trace / 2),
+                      (0, -self.start_trace / 2)]
+            points_rotated = [np.dot(rotation, to_point(p).T).T for p in points]
+            points_rotated_shifted = [to_point(origin) + self.start + p for p in points_rotated]
+            polygon = gdspy.Polygon(points=points_rotated_shifted, layer=layer, datatype=datatype)
+            if cell is not None:
+                cell.add(element=polygon)
+            return polygon
+        else:
+            raise ValueError("Invalid argument to 'what': {}.".format(what))

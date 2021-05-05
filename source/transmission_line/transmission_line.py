@@ -222,7 +222,7 @@ class SegmentList(list):
         :param indexable origin: The point to use for the origin of the first Segment.
         :param individual_keywords: keys are integer indices and values are dicts of parameters that update the
                                     the :meth:`draw` call for the Segment at that index; use this to override the global
-                                    keywords or to pass keywords that not all Segments accept.
+                                    keywords for individual Segments or to pass keywords that not all Segments accept.
         :type individual_keywords: dict or None
         :param global_keywords: keyword arguments passed to every :meth:`Segment.draw`.
         :return: the drawn structures ordered from start to end.
@@ -318,7 +318,7 @@ class Segment(object):
         """The length of the Segment, calculating by adding the lengths of straight lines connecting the points."""
         return np.sum(np.hypot(np.diff(self.x), np.diff(self.y)))
 
-    def draw(self, cell, origin, **kwargs):
+    def draw(self, cell, origin, what='default', **kwargs):
         """Draw this Segment in the given cell, if one is specified.
 
         Subclasses implement this method to draw themselves. They should return the drawn structure(s). If possible,
@@ -328,7 +328,11 @@ class Segment(object):
         :param cell: the cell into which this segment will be drawn.
         :type cell: gdspy.Cell or None
         :param indexable origin: draw the segment relative to this point; the meaning depends on the segment type.
-        :return: None, but subclasses should return an iterable of the drawn structure(s).
+        :param str what: choose whether to draw all, some, or none of the possible structures; all subclasses should
+                         accept at least 'default', which should draw and return the expected structures, and 'none',
+                         which should draw no structures at all (even if a cell is given) *and* return None.
+        :return: None, but subclasses should return the drawn structure(s).
+        :raises ValueError: if the argument of 'what' is not recognized.
         """
         pass
 
