@@ -1,3 +1,4 @@
 gdspy
+matplotlib
 numpy
 scipy

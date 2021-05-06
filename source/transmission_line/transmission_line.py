@@ -11,11 +11,21 @@ uses 'point' and 'list[point]'.
 from __future__ import absolute_import, division, print_function
 
 import gdspy
+from matplotlib.font_manager import FontProperties
+from matplotlib.textpath import TextPath
 import numpy as np
 
-# This is the maximum number of points in a polygon allowed by the GDSII specification.
+# This is the maximum number of points in a polygon allowed by the GDSII specification (or nearly the maximum).
 GDSII_POLYGON_MAX_POINTS = 8190
+
+# This is the number of points per radian of arc, used by :func:`smooth`.
 DEFAULT_POINTS_PER_RADIAN = 60
+
+# These are the default font properties used by :func:`polygon_text`, which renders text with matplotlib.
+DEFAULT_FONT_PROPERTIES = {
+    'family': 'sans-serif',
+    'style': 'normal'
+}
 
 
 def to_point(indexable):
@@ -59,7 +69,82 @@ def from_increments(increments, origin=(0, 0)):
         points.append(points[-1] + increment)
     return points
 
-# ToDo: update docstrings below here
+
+# ToDo: merge the two functions below
+def polygon_text(text, size, position, layer=0, datatype=0, font_properties=None, tolerance=0.1):
+    """Return the given text as polygons.
+
+    If the text size is small, holes in letters can create structures that do not lift off easily. To avoid this,
+    one option is to pass `family='stencil'`, which draws the text in an uppercase-only stencil font (available on
+    Windows) with no holes.
+
+    :param str text: the text to render as polygons.
+    :param float size: the approximate size of the text in user units.
+    :param indexable position: the coordinates are (left_edge, baseline), so the text may descend below the baseline.
+    :param int layer: the GDSII layer.
+    :param int datatype: the GDSII datatype.
+    :param font_properties: if None, use :attr:`DEFAULT_FONT_PROPERTIES` in this module; if dict, update these defaults;
+                            see :module:`matplotlib.font_manager` for valid keys.
+    :type font_properties: dict or None
+    :param float tolerance: this has something to do with the number of points used to draw the polygon.
+    :return: polygons representing the text.
+    :rtype: gdspy.PolygonSet
+    """
+    fp = DEFAULT_FONT_PROPERTIES.copy()
+    if font_properties is not None:
+        fp.update(font_properties)
+    polygons = _render_text(text=text, size=size, position=position, font_prop=FontProperties(**fp), tolerance=tolerance)
+    return gdspy.PolygonSet(polygons=polygons, layer=layer, datatype=datatype)
+
+
+def _render_text(text, size=None, position=(0, 0), font_prop=None, tolerance=0.1):
+    """This function is copied from https://gdspy.readthedocs.io/en/stable/gettingstarted.html#using-system-fonts"""
+    path = TextPath(position, text, size=size, prop=font_prop)
+    polys = []
+    xmax = position[0]
+    for points, code in path.iter_segments():
+        if code == path.MOVETO:
+            c = gdspy.Curve(*points, tolerance=tolerance)
+        elif code == path.LINETO:
+            c.L(*points)
+        elif code == path.CURVE3:
+            c.Q(*points)
+        elif code == path.CURVE4:
+            c.C(*points)
+        elif code == path.CLOSEPOLY:
+            poly = c.get_points()
+            if poly.size > 0:
+                if poly[:, 0].min() < xmax:
+                    i = len(polys) - 1
+                    while i >= 0:
+                        if gdspy.inside(
+                            poly[:1], [polys[i]], precision=0.1 * tolerance
+                        )[0]:
+                            p = polys.pop(i)
+                            poly = gdspy.boolean(
+                                [p],
+                                [poly],
+                                "xor",
+                                precision=0.1 * tolerance,
+                                max_points=0,
+                            ).polygons[0]
+                            break
+                        elif gdspy.inside(
+                            polys[i][:1], [poly], precision=0.1 * tolerance
+                        )[0]:
+                            p = polys.pop(i)
+                            poly = gdspy.boolean(
+                                [p],
+                                [poly],
+                                "xor",
+                                precision=0.1 * tolerance,
+                                max_points=0,
+                            ).polygons[0]
+                        i -= 1
+                xmax = max(xmax, poly[:, 0].max())
+                polys.append(poly)
+    return polys
+
 
 
 # ToDo: warn if consecutive points are too close together to bend properly.
