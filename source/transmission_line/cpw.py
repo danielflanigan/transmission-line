@@ -6,10 +6,11 @@ The classes with names that start with 'Negative' draw the negative space, meani
 absence of metal. The difference between the two is that the Positive structures are instantiated with a 'ground'
 keyword argument that gives the width of the finite ground planes, while the Negative structures are not since the
 ground planes are left unspecified.
+
+The class `draw` methods return tuples of :class:`gdspy.PolygonSet`.
 """
 # ToDo: harmonize returned gdspy structure types: convert to PolygonSet or not? Tuples only?
 # ToDo: harmonize max_points throughout
-# ToD: Don't force round_tip=True in elbow couplers
 from __future__ import absolute_import, division, print_function
 
 import gdspy
@@ -327,12 +328,11 @@ class NegativeCPW(SmoothedSegment):
         :raises ValueError: if the argument of 'what' is not recognized.
         """
         if what == 'none':
-            return
+            return ()
         elif what == 'default':
             points = [to_point(origin) + point for point in self.points]
-            trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, gdsii_path=False)
-            gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=max_points,
-                                          gdsii_path=False)
+            trace_flexpath = gdspy.FlexPath(points=points, width=self.trace)
+            gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap)
             polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=max_points, layer=layer,
                                         datatype=datatype)
             if cell is not None:
@@ -340,8 +340,8 @@ class NegativeCPW(SmoothedSegment):
             return polygon_set
         elif what == 'merge':
             points = [to_point(origin) + point for point in self.points]
-            trace_and_gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=max_points,
-                                                    gdsii_path=False)
+            trace_and_gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap,
+                                                    max_points=max_points)
             polygon_set = trace_and_gap_flexpath.to_polygonset()
             if cell is not None:
                 cell.add(element=polygon_set)
@@ -350,35 +350,43 @@ class NegativeCPW(SmoothedSegment):
             raise ValueError("Invalid argument to 'what': {}.".format(what))
 
 
-class NegativeCPWElbowCoupler(SmoothedSegment):
+class NegativeCPWElbowCoupler(NegativeCPW):
     """Negative co-planar waveguide elbow coupler: structures are absence of metal."""
 
-    def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None,
+    def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None, is_start=True,
                  points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
         """Instantiate without drawing in any cell.
 
-        :param point tip_point: the open end of the coupler; the first point of the segment.
-        :param point elbow_point: the point where the coupler turns away from the feedline; the middle point of the
-                                  segment.
-        :param point joint_point: the point where the coupler joins the rest of the transmission line; the last point of
+        If the structure is intended to be drawn as the start of a :class:`SegmentList`, the most convenient choice of
+        origin may be to place the elbow point at (0, 0) so that changing the coupler length by moving the tip point
+        does not move the rest of the structure.
+
+        :param indexable tip_point: the open end of the coupler; the first point of the segment.
+        :param indexable elbow_point: the point where the coupler turns away from the feedline; the middle point of the
+                                      segment.
+        :param indexable joint_point: the point where the coupler joins the rest of the transmission line; the last point of
                                   the segment.
         :param float trace: the width of the center trace.
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
+        :param bool is_start: if True, the point order is `[tip_point, elbow_point, joint_point]` so that the structure
+                              can be drawn as the start of a :class:`SegmentList`; if False, the order is reversed so
+                              that it can be drawn as the end.
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
-        self.trace = trace
-        self.gap = gap
-        if radius is None:
-            radius = trace + gap
-        super(NegativeCPWElbowCoupler, self).__init__(outline=[tip_point, elbow_point, joint_point], radius=radius,
+        self.is_start = is_start
+        if is_start:
+            points = [tip_point, elbow_point, joint_point]
+        else:
+            points = [joint_point, elbow_point, tip_point]
+        super(NegativeCPWElbowCoupler, self).__init__(outline=points, trace=trace, gap=gap, radius=radius,
                                                       points_per_radian=points_per_radian, round_to=round_to)
 
     def draw(self, cell, origin, what='default', layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS,
              round_tip=True):
-        """Draw this structure into the given cell and return the drawn polygon set, which should contain two polygons.
+        """Draw this structure into the given cell and return the drawn polygon(s).
 
         :param cell: the cell into which to draw the structure, if not None.
         :type cell: gdspy.Cell or None
@@ -389,17 +397,16 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
         :param int datatype: the GDSII datatype.
         :param int max_points: polygons with more than this many points are fractured.
         :param bool round_tip: if True, add a round tip to the start of the path.
-        :return: the path and tip that were drawn into the cell.
-        :rtype: tuple[gdspy.PolygonSet or None]
+        :return: the path (and possibly the tip) that were drawn.
+        :rtype: tuple[gdspy.PolygonSet]
         :raises ValueError: if the argument of 'what' is not recognized.
         """
         if what == 'none':
             return
         elif what == 'default':
             points = [to_point(origin) + point for point in self.points]
-            trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, gdsii_path=False)
-            gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=max_points,
-                                          gdsii_path=False)
+            trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points)
+            gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=max_points)
             path_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=max_points, layer=layer,
                                      datatype=datatype)
             if cell is not None:
@@ -419,7 +426,7 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
         elif what == 'merge':
             points = [to_point(origin) + point for point in self.points]
             path_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, layer=layer, datatype=datatype,
-                                      max_points=max_points, gdsii_path=False).to_polygonset()
+                                      max_points=max_points).to_polygonset()
             if cell is not None:
                 cell.add(element=path_set)
             if round_tip:
@@ -542,285 +549,169 @@ class PositiveCPW(SmoothedSegment):
                                           round_to=round_to)
 
     def draw(self, cell, origin, what='default', layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS):
-        """Draw this structure into the given cell and return the drawn polygon set, which contains three polygons.
+        """Create and return a tuple of polygon(s), and add them to the given cell if it is not None.
 
         :param cell: the cell into which to draw the structure, if not None.
         :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
-        :param str what: if 'default', the center trace and both ground planes; if 'none', draw nothing; if 'merge',
-                         draw one polygon that is the union of the center trace, gaps, and ground planes; if 'trace'
-                         draw only the center trace; if 'ground', draw only the ground planes.
-        :param int layer: the layer on which to draw.
+        :param str what: if 'default', draw the center trace and both ground planes; if 'none', draw nothing (and
+                         return an empty tuple); if 'merge', draw the union of the center trace, gaps, and ground
+                         planes; if 'trace', draw only the center trace; if 'ground', draw only the ground planes.
+        :param int layer: the layer on which to create the structures.
         :param int datatype: the GDSII datatype.
         :param int max_points: polygons with more than this many points are fractured. 
-        :return: the object that was drawn into the cell.
-        :rtype: gdspy.PolygonSet
+        :return: the object(s) that were drawn.
+        :rtype: tuple[gdspy.PolygonSet]
         :raises ValueError: if the argument of 'what' is not recognized.        
         """
         if what == 'none':
-            return
+            return ()
         elif what == 'default':
             points = [to_point(origin) + point for point in self.points]
-            trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, gdsii_path=False)
-            gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=max_points,
-                                          gdsii_path=False)
-            ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground,
-                                             max_points=max_points, gdsii_path=False)
-            negative_polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=max_points)
-            positive_polygon_set = gdspy.boolean(ground_flexpath, negative_polygon_set, 'not', max_points=max_points,
+            trace_flexpath = gdspy.FlexPath(points=points, width=self.trace)
+            gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap)
+            ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground)
+            negative_polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not')
+            polygon_set = gdspy.boolean(ground_flexpath, negative_polygon_set, 'not', max_points=max_points,
                                                  layer=layer, datatype=datatype)
-            if cell is not None:
-                cell.add(element=positive_polygon_set)
-            return (positive_polygon_set,)
         elif what == 'merge':
-            pass
+            points = [to_point(origin) + point for point in self.points]
+            polygon_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground,
+                                         max_points=max_points, layer=layer).to_polygonset()
         elif what == 'trace':
             points = [to_point(origin) + point for point in self.points]
-            trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, gdsii_path=False,
-                                            layer=layer, datatype=datatype)
-            positive_polygon_set = trace_flexpath.to_polygonset()
-            if cell is not None:
-                cell.add(element=positive_polygon_set)
-            return (positive_polygon_set,)
+            polygon_set = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, layer=layer,
+                                            datatype=datatype).to_polygonset()
         elif what == 'ground':
-            pass
+            points = [to_point(origin) + point for point in self.points]
+            trace_and_gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap)
+            ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground)
+            polygon_set = gdspy.boolean(ground_flexpath, trace_and_gap_flexpath, 'not', max_points=max_points,
+                                        layer=layer, datatype=datatype)
         else:
             raise ValueError("Invalid argument to 'what': {}.".format(what))
-
-
-class PositiveCPWTrace(PositiveCPW):
-    """Positive co-planar waveguide with only the center trace and no ground planes: structures are metal.
-
-    This class draws only the center trace, with no ground planes. This is useful when the trace and grounds are on
-    different layers or have different datatypes. The interface is the same as :class:`PositiveCPW` for compatibility.
-    """
-
-    def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the drawn polygon set, which contains one polygon.
-
-        :param cell: the cell into which to draw the structure, if not None.
-        :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :return: the object that was drawn into the cell.
-        :rtype: gdspy.PolygonSet
-        """
-        points = [to_point(origin) + point for point in self.points]
-        trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, gdsii_path=False, layer=layer,
-                                        datatype=datatype)
-        positive_polygon_set = trace_flexpath.to_polygonset()
-        if cell is not None:
-            cell.add(element=positive_polygon_set)
-        return positive_polygon_set
-
-
-class PositiveCPWGround(PositiveCPW):
-    """Positive co-planar waveguide with only the ground planes and no center trace: structures are metal.
-
-    This class draws only the ground planes, with no center trace. This is useful when the trace and grounds are on
-    different layers or have different datatypes. The interface is the same as :class:`PositiveCPW` for compatibility.
-    """
-
-    def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the drawn polygon set, which contains two polygons.
-
-        :param cell: the cell into which to draw the structure, if not None.
-        :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :return: the object that was drawn into the cell.
-        :rtype: gdspy.PolygonSet
-        """
-        points = [to_point(origin) + point for point in self.points]
-        trace_and_gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=max_points,
-                                                gdsii_path=False)
-        ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground, max_points=max_points,
-                                         gdsii_path=False)
-        polygon_set = gdspy.boolean(ground_flexpath, trace_and_gap_flexpath, 'not', max_points=max_points, layer=layer,
-                                    datatype=datatype)
         if cell is not None:
             cell.add(element=polygon_set)
-        return polygon_set
-
-
-class PositiveCPWBlank(PositiveCPW):
-    """Positive co-planar waveguide blank.
-
-    This class draws a single polygon that is the union of the center trace, gaps, and ground plane. It could be used
-    when only the borders of the entire CPW structure are needed. The interface is the same as :class:`PositiveCPW` for
-    compatibility.
-    """
-
-    def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the drawn polygon set, which contains one polygon.
-
-        :param cell: the cell into which to draw the structure, if not None.
-        :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :return: the object that was drawn into the cell.
-        :rtype: gdspy.PolygonSet
-        """
-        points = [to_point(origin) + point for point in self.points]
-        polygon_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground, max_points=max_points,
-                                     layer=layer).to_polygonset()
-        if cell is not None:
-            cell.add(element=polygon_set)
-        return polygon_set
+        return (polygon_set,)
 
 
 # ToDo: specify the connection to the feedline somehow
-
-class PositiveCPWElbowCoupler(SmoothedSegment):
+class PositiveCPWElbowCoupler(PositiveCPW):
     """Positive co-planar waveguide elbow coupler: structures are metal.
 
-    Currently, the elbow must be at right angles to the joint.
+    This is a section of PositiveCPW with a few differences:
+    - it is electrically open (not galvanically connected at one end), the 'tip_point' end;
+    - it is intended to be drawn as the start or end of a :class:`SegmentList`;
+    - the open end may have a round cap added to it, to avoid sharp edges;
+    - what about the strip?
+
+    **This is not properly implemented yet.**
     """
 
-    def __init__(self, tip_point, elbow_point, joint_point, trace, gap, ground, strip, radius=None,
+    def __init__(self, tip_point, elbow_point, joint_point, trace, gap, ground, strip, radius=None, is_start=True,
                  points_per_radian=DEFAULT_POINTS_PER_RADIAN, round_to=None):
         """Instantiate without drawing in any cell.
 
-        :param point tip_point: the open end of the coupler; the first point of the segment.
-        :param point elbow_point: the point where the coupler turns away from the feedline; the middle point of the
-                                  segment.
-        :param point joint_point: the point where the coupler joins the rest of the transmission line; the last point of
-                                  the segment.
+        If the structure is intended to be drawn as the start of a :class:`SegmentList`, the most convenient choice of
+        origin may be to place the elbow point at (0, 0) so that changing the coupler length by moving the tip point
+        does not move the rest of the structure.
+
+        :param indexable tip_point: the open end of the coupler; the first (or last) point of the segment.
+        :param indexable elbow_point: the point where the coupler turns away from the feedline; the middle point of the
+                                      segment.
+        :param indexable joint_point: the point where the coupler joins the rest of the transmission line; the last
+                                      (or first) point of the segment.
         :param float trace: the width of the center trace.
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
+        :param float ground: the width of the ground planes except... where?
+        :param float strip: this should be the width of the ground plane on one side of the tip-elbow line.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
+        :param bool is_start: if True, the point order is `[tip_point, elbow_point, joint_point]` so that the structure
+                              can be drawn as the start of a :class:`SegmentList`; if False, the order is reversed so
+                              that it can be drawn as the end.
         :param int points_per_radian: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
-        self.trace = trace
-        self.gap = gap
-        self.ground = ground
         self.strip = strip
-        if radius is None:
-            radius = trace + gap
-        super(PositiveCPWElbowCoupler, self).__init__(outline=[tip_point, elbow_point, joint_point], radius=radius,
-                                                      points_per_radian=points_per_radian, round_to=round_to)
+        self.is_start = is_start
+        if is_start:
+            points = [tip_point, elbow_point, joint_point]
+        else:
+            points = [joint_point, elbow_point, tip_point]
+        super(PositiveCPWElbowCoupler, self).__init__(outline=points, trace=trace, gap=gap, ground=ground,
+                                                      radius=radius, points_per_radian=points_per_radian,
+                                                      round_to=round_to)
 
-    def draw(self, cell, origin, layer, datatype=0, round_tip=True):
-        """Draw this structure into the given cell and return the drawn polygon set, which should contain one polygon.
+    def draw(self, cell, origin, what='default', layer=0, datatype=0, round_tip=True,
+             max_points=GDSII_POLYGON_MAX_POINTS):
+        """Create and return a tuple of polygon(s), and add them to the given cell if it is not None.
 
         :param cell: the cell into which to draw the structure, if not None.
         :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
+        :param indexable origin: the points of the drawn structure are relative to this point.
+        :param str what: if 'default', draw the center trace and both ground planes; if 'none', draw nothing (and
+                         return an empty tuple); if 'merge', draw the union of the center trace, gaps, and ground
+                         planes; if 'trace', draw only the center trace; if 'ground', draw only the ground planes.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
-        :param bool round_tip: currently must be True, meaning that the tip that is the start of the path is rounded.
-        :return: the path and tip arc that were drawn into the cell.
+        :param bool round_tip: if True, add a round tip to the end at the tip point and return this polygon also.
+        :param int max_points: polygons with more than this many points are fractured.
+        :return: the path (and possibly tip arc) that were drawn into the cell.
         :rtype: tuple[gdspy.PolygonSet]
         """
+        polygons = list()
         points = [to_point(origin) + point for point in self.points]
-        trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, gdsii_path=False)
-        gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=max_points, gdsii_path=False)
-        # outer_strip_distance = self.trace / 2 + self.gap + self.strip
-        # outer_ground = self.trace / 2 + self.gap + self.ground
-        # outer_joint_distance =
-        # ground_outline_points = [(-outer_ground, -outer_strip_distance), (outer_ground, -outer_strip_distance),
-        #                         (outer_ground, self.points[2][1] - self.points[1][1])]
-        # ground_footprint = gdspy.Polygon(points=[to_point(origin) + self.points[1] + to_point(p)
-        #                                         for p in ground_outline_points])
-        ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.strip, max_points=max_points,
-                                         gdsii_path=False)
-        gap_polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=max_points, layer=layer,
-                                        datatype=datatype)
-        if round_tip:
-            v = points[0] - points[1]
-            theta = np.arctan2(v[1], v[0])
-            round_set = gdspy.Round(center=points[0], radius=self.trace / 2 + self.gap, inner_radius=self.trace / 2,
-                                    initial_angle=theta - np.pi / 2, final_angle=theta + np.pi / 2, max_points=max_points,
-                                    layer=layer, datatype=datatype)
-            positive_polygon_set = gdspy.boolean(ground_footprint, [gap_polygon_set, round_set], 'not', max_points=max_points,
-                                                 layer=layer, datatype=datatype)
-        else:
-            positive_polygon_set = gdspy.boolean(ground_footprint, negative_polygon_set, 'not', max_points=max_points,
-                                                 layer=layer, datatype=datatype)
+        if what == 'none':
+            pass
+        elif what == 'default':
+            raise NotImplementedError()
+            trace_flexpath = gdspy.FlexPath(points=points, width=self.trace)
+            gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap)
+            # outer_strip_distance = self.trace / 2 + self.gap + self.strip
+            # outer_ground = self.trace / 2 + self.gap + self.ground
+            # outer_joint_distance =
+            # ground_outline_points = [(-outer_ground, -outer_strip_distance), (outer_ground, -outer_strip_distance),
+            #                         (outer_ground, self.points[2][1] - self.points[1][1])]
+            # ground_footprint = gdspy.Polygon(points=[to_point(origin) + self.points[1] + to_point(p)
+            #                                         for p in ground_outline_points])
+            ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.strip)
+            gap_polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=max_points, layer=layer,
+                                            datatype=datatype)
+            if round_tip:
+                tip_vector = points[0] - points[1]
+                theta = np.arctan2(tip_vector[1], tip_vector[0])
+                round_set = gdspy.Round(center=points[0], radius=self.trace / 2 + self.gap, inner_radius=self.trace / 2,
+                                        initial_angle=theta - np.pi / 2, final_angle=theta + np.pi / 2,
+                                        max_points=max_points, layer=layer, datatype=datatype)
+                positive_polygon_set = gdspy.boolean(ground_footprint, [gap_polygon_set, round_set], 'not', max_points=max_points,
+                                                     layer=layer, datatype=datatype)
+            else:
+                positive_polygon_set = gdspy.boolean(ground_footprint, negative_polygon_set, 'not', max_points=max_points,
+                                                     layer=layer, datatype=datatype)
+        elif what == 'trace':
+            polygons.append(gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, layer=layer,
+                                           datatype=datatype).to_polygonset())
+            if round_tip:
+                if self.is_start:
+                    tip_point = points[0]
+                    next_point = points[1]
+                else:
+                    tip_point = points[-1]
+                    next_point = points[-2]
+                tip_vector = tip_point - next_point
+                theta = np.arctan2(tip_vector[1], tip_vector[0])
+                polygons.append(gdspy.Round(center=tip_point, radius=self.trace / 2, inner_radius=0,
+                                            initial_angle=theta - np.pi / 2, final_angle=theta + np.pi / 2,
+                                            max_points=max_points, layer=layer, datatype=datatype))
+        elif what == 'ground':
+            raise NotImplementedError()
+        elif what == 'merge':
+            raise NotImplementedError()
         if cell is not None:
-            cell.add(element=positive_polygon_set)
-        return positive_polygon_set
-
-
-class PositiveCPWElbowCouplerTrace(PositiveCPWElbowCoupler):
-    """Positive co-planar waveguide elbow coupler with only the center trace and no ground planes: structures are metal.
-
-    The interface is the same as :class:`PositiveCPWElbowCoupler` for compatibility.
-    """
-
-    def draw(self, cell, origin, layer, datatype=0, round_tip=True):
-        """Draw this structure into the given cell and return the drawn structures.
-
-        :param cell: the cell into which to draw the structure, if not None.
-        :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :param bool round_tip: if True, add a semicircular cap to the beginning of the center trace.
-        :return: the path and possibly the tip that were drawn into the cell.
-        :rtype: gdspy.PolygonSet or tuple[gdspy.PolygonSet]
-        """
-        points = [to_point(origin) + point for point in self.points]
-        trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=max_points, gdsii_path=False, layer=layer,
-                                        datatype=datatype)
-        polygon_set = trace_flexpath.to_polygonset()
-        if cell is not None:
-            cell.add(element=polygon_set)
-        if round_tip:
-            v = points[0] - points[1]
-            theta = np.arctan2(v[1], v[0])
-            round_set = gdspy.Round(center=points[0], radius=self.trace / 2, inner_radius=0,
-                                    initial_angle=theta - np.pi / 2, final_angle=theta + np.pi / 2, max_points=max_points,
-                                    layer=layer, datatype=datatype)
-            if cell is not None:
-                cell.add(element=round_set)
-            return polygon_set, round_set
-        else:
-            return polygon_set
-
-
-class PositiveCPWElbowCouplerGround(PositiveCPWElbowCoupler):
-    """Positive co-planar waveguide elbow coupler with only the ground planes and no center trace: structures are metal.
-
-    The interface is the same as :class:`PositiveCPWElbowCoupler` for compatibility.
-    """
-
-    def draw(self, cell, origin, layer, datatype=0, round_tip=True):
-        """Draw this structure into the given cell and return the drawn polygon set, which should contain two polygons.
-
-        :param cell: the cell into which to draw the structure, if not None.
-        :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :param bool round_tip: if True, add a semicircular cap to the beginning of the center trace.
-        :return: the path and tip arc that were drawn into the cell.
-        :rtype: tuple[gdspy.PolygonSet]
-        """
-        points = [to_point(origin) + point for point in self.points]
-        ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground,
-                                         ends=('extended', 'flush'), max_points=max_points, gdsii_path=False)
-        trace_and_gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, ends=ends, max_points=max_points,
-                                                gdsii_path=False)
-        if round_tip:
-            v = points[0] - points[1]
-            theta = np.arctan2(v[1], v[0])
-            round_set = gdspy.Round(center=points[0], radius=self.trace / 2 + self.gap, inner_radius=self.trace / 2,
-                                    initial_angle=theta - np.pi / 2, final_angle=theta + np.pi / 2, max_points=max_points,
-                                    layer=layer, datatype=datatype)
-            polygon_set = gdspy.boolean(ground_flexpath, [trace_and_gap_flexpath, round_set],
-                                        operation='not', max_points=max_points, layer=layer, datatype=datatype)
-        else:
-            polygon_set = gdspy.boolean(ground_flexpath, trace_and_gap_flexpath, operation='not', max_points=max_points,
-                                        layer=layer, datatype=datatype)
-        if cell is not None:
-            cell.add(element=polygon_set)
-        return polygon_set
+            for polygon in polygons:
+                cell.add(element=polygon)
+        return tuple(polygons)
 
 
 class PositiveCPWTransition(Segment):
@@ -850,111 +741,58 @@ class PositiveCPWTransition(Segment):
         self.end_gap = end_gap
         self.end_ground = end_ground
 
-    def draw(self, cell, origin, layer, datatype=0):
+    def draw(self, cell, origin, what='default', layer=0, datatype=0):
         """Draw this structure into the given cell and return the three drawn polygons, which are the center trace and
         two ground planes.
 
         :param cell: the cell into which to draw the structure, if not None.
         :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
+        :param str what: if 'default', the center trace and both ground planes; if 'none', draw nothing; if 'merge',
+                         draw the union of the center trace, gaps, and ground planes; if 'trace' draw only the center
+                         trace; if 'ground', draw only the ground planes.
+        :param int layer: the layer on which to create the structures.
         :param int datatype: the GDSII datatype.
-        :return: the three polygons that were drawn into the cell.
-        :rtype: tuple[gdspy.Polygon]
+        :param int max_points: polygons with more than this many points are fractured.
+        :return: the object(s) that were drawn.
+        :rtype: tuple[gdspy.PolygonSet]
+        :raises ValueError: if the argument of 'what' is not recognized.
         """
-        v = self.end - self.start
-        phi = np.arctan2(v[1], v[0])
-        rotation = np.array([[np.cos(phi), -np.sin(phi)],
-                             [np.sin(phi), np.cos(phi)]])
-        trace = [(0, self.start_trace / 2),
-                 (self.length, self.end_trace / 2),
-                 (self.length, -self.end_trace / 2),
-                 (0, -self.start_trace / 2)]
-        upper = [(0, self.start_trace / 2 + self.start_gap),
-                 (0, self.start_trace / 2 + self.start_gap + self.start_ground),
-                 (self.length, self.end_trace / 2 + self.end_gap + self.end_ground),
-                 (self.length, self.end_trace / 2 + self.end_gap)]
-        lower = [(x, -y) for x, y in upper]
-        trace_rotated = [np.dot(rotation, to_point(p).T).T for p in trace]
-        upper_rotated = [np.dot(rotation, to_point(p).T).T for p in upper]
-        lower_rotated = [np.dot(rotation, to_point(p).T).T for p in lower]
-        trace_rotated_shifted = [to_point(origin) + self.start + p for p in trace_rotated]
-        upper_rotated_shifted = [to_point(origin) + self.start + p for p in upper_rotated]
-        lower_rotated_shifted = [to_point(origin) + self.start + p for p in lower_rotated]
-        trace_polygon = gdspy.Polygon(points=trace_rotated_shifted, layer=layer, datatype=datatype)
-        upper_polygon = gdspy.Polygon(points=upper_rotated_shifted, layer=layer, datatype=datatype)
-        lower_polygon = gdspy.Polygon(points=lower_rotated_shifted, layer=layer, datatype=datatype)
+        polygons = list()
+        if what != 'none':
+            v = self.end - self.start
+            phi = np.arctan2(v[1], v[0])
+            rotation = np.array([[np.cos(phi), -np.sin(phi)],
+                                 [np.sin(phi), np.cos(phi)]])
+            if what in ('default', 'trace'):
+                trace = [(0, self.start_trace / 2),
+                         (self.length, self.end_trace / 2),
+                         (self.length, -self.end_trace / 2),
+                         (0, -self.start_trace / 2)]
+                trace_rotated = [np.dot(rotation, to_point(p).T).T for p in trace]
+                trace_rotated_shifted = [to_point(origin) + self.start + p for p in trace_rotated]
+                polygons.append(gdspy.Polygon(points=trace_rotated_shifted, layer=layer, datatype=datatype))
+            if what in ('default', 'ground'):
+                upper = [(0, self.start_trace / 2 + self.start_gap),
+                         (0, self.start_trace / 2 + self.start_gap + self.start_ground),
+                         (self.length, self.end_trace / 2 + self.end_gap + self.end_ground),
+                         (self.length, self.end_trace / 2 + self.end_gap)]
+                lower = [(x, -y) for x, y in upper]
+                upper_rotated = [np.dot(rotation, to_point(p).T).T for p in upper]
+                lower_rotated = [np.dot(rotation, to_point(p).T).T for p in lower]
+                upper_rotated_shifted = [to_point(origin) + self.start + p for p in upper_rotated]
+                lower_rotated_shifted = [to_point(origin) + self.start + p for p in lower_rotated]
+                polygons.append(gdspy.Polygon(points=upper_rotated_shifted, layer=layer, datatype=datatype))
+                polygons.append(gdspy.Polygon(points=lower_rotated_shifted, layer=layer, datatype=datatype))
+            if what == 'merge':
+                merged = [(0, self.start_trace / 2 + self.start_gap + self.start_ground),
+                          (self.length, self.end_trace / 2 + self.end_gap + self.end_ground),
+                          (self.length, -self.end_trace / 2 + self.end_gap + self.end_ground),
+                          (0, -self.start_trace / 2 + self.start_gap + self.start_ground)]
+                merged_rotated = [np.dot(rotation, to_point(p).T).T for p in merged]
+                merged_rotated_shifted = [to_point(origin) + self.start + p for p in merged_rotated]
+                polygons.append(gdspy.Polygon(points=merged_rotated_shifted, layer=layer, datatype=datatype))
         if cell is not None:
-            cell.add(element=trace_polygon)
-            cell.add(element=upper_polygon)
-            cell.add(element=lower_polygon)
-        return trace_polygon, upper_polygon, lower_polygon
-
-
-class PositiveCPWTransitionTrace(PositiveCPWTransition):
-    """Transition between two sections of positive co-planar waveguide: this class draws only the center trace and not
-     the ground planes.
-     """
-
-    def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the one drawn polygon, which is the center trace.
-
-        :param cell: the cell into which to draw the structure, if not None.
-        :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :return: the three polygons that were drawn into the cell.
-        :rtype: tuple[gdspy.Polygon]
-        """
-        v = self.end - self.start
-        phi = np.arctan2(v[1], v[0])
-        rotation = np.array([[np.cos(phi), -np.sin(phi)],
-                             [np.sin(phi), np.cos(phi)]])
-        trace = [(0, self.start_trace / 2),
-                 (self.length, self.end_trace / 2),
-                 (self.length, -self.end_trace / 2),
-                 (0, -self.start_trace / 2)]
-        trace_rotated = [np.dot(rotation, to_point(p).T).T for p in trace]
-        trace_rotated_shifted = [to_point(origin) + self.start + p for p in trace_rotated]
-        trace_polygon = gdspy.Polygon(points=trace_rotated_shifted, layer=layer, datatype=datatype)
-        if cell is not None:
-            cell.add(element=trace_polygon)
-        return trace_polygon
-
-
-class PositiveCPWTransitionGround(PositiveCPWTransition):
-    """Transition between two sections of positive co-planar waveguide: this class draws only the ground planes and not
-     the center trace.
-     """
-
-    def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the two drawn polygons, which are the ground planes.
-
-        :param cell: the cell into which to draw the structure, if not None.
-        :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :return: the three polygons that were drawn into the cell.
-        :rtype: tuple[gdspy.Polygon]
-        """
-        v = self.end - self.start
-        phi = np.arctan2(v[1], v[0])
-        rotation = np.array([[np.cos(phi), -np.sin(phi)],
-                             [np.sin(phi), np.cos(phi)]])
-        upper = [(0, self.start_trace / 2 + self.start_gap),
-                 (0, self.start_trace / 2 + self.start_gap + self.start_ground),
-                 (self.length, self.end_trace / 2 + self.end_gap + self.end_ground),
-                 (self.length, self.end_trace / 2 + self.end_gap)]
-        lower = [(x, -y) for x, y in upper]
-        upper_rotated = [np.dot(rotation, to_point(p).T).T for p in upper]
-        lower_rotated = [np.dot(rotation, to_point(p).T).T for p in lower]
-        upper_rotated_shifted = [to_point(origin) + self.start + p for p in upper_rotated]
-        lower_rotated_shifted = [to_point(origin) + self.start + p for p in lower_rotated]
-        upper_polygon = gdspy.Polygon(points=upper_rotated_shifted, layer=layer, datatype=datatype)
-        lower_polygon = gdspy.Polygon(points=lower_rotated_shifted, layer=layer, datatype=datatype)
-        if cell is not None:
-            cell.add(element=upper_polygon)
-            cell.add(element=lower_polygon)
-        return upper_polygon, lower_polygon
+            for polygon in polygons:
+                cell.add(element=polygon)
+        return tuple(polygons)
