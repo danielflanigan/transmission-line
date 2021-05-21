@@ -168,7 +168,7 @@ def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN, already_
                                         by :class:`SmoothedSegment` to avoid double-conversion.
     :return: four lists with length equal to the number of bends (i.e. two less than the number of given points)
              that contain, for each bend, (1) a list of points in that bend, (2) the bend angle in radians, (3) the
-             corner point  from the original list, and (4) the vector offset of the bend arc center relative to the
+             corner point from the original list, and (4) the vector offset of the bend arc center relative to the
              corner point.
     :rtype: tuple[list]
     """
@@ -266,8 +266,8 @@ class SegmentList(list):
     def length(self):
         """The sum of the lengths of the Segments in this SegmentList.
 
-        This uses the `length` property of each individual Segment and does not check that the Segments are all
-        connected head-to-tail.
+        This sums the `length` properties of each individual Segment. It should give the correct length if each Segment
+        (after the first) starts at (0, 0), but be careful otherwise.
         """
         return np.sum([element.length for element in self])
 
