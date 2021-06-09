@@ -18,8 +18,8 @@ import numpy as np
 # This is the maximum number of points in a polygon allowed by the GDSII specification (or nearly the maximum).
 GDSII_POLYGON_MAX_POINTS = 8190
 
-# This is the number of points per radian of arc, used by :func:`smooth`.
-DEFAULT_POINTS_PER_RADIAN = 60
+# This is the number of points per degree of arc, used by :func:`smooth`.
+DEFAULT_POINTS_PER_DEGREE = 1
 
 # These are the default font properties used by :func:`polygon_text`, which renders text with matplotlib.
 DEFAULT_FONT_PROPERTIES = {
@@ -146,9 +146,8 @@ def _render_text(text, size=None, position=(0, 0), font_prop=None, tolerance=0.1
     return polys
 
 
-
 # ToDo: warn if consecutive points are too close together to bend properly.
-def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN, already_package_format=False):
+def smooth(points, radius, points_per_degree=DEFAULT_POINTS_PER_DEGREE, already_package_format=False):
     """Return a list of smoothed points constructed by adding points to change the given corners into circular arcs.
 
     At each corner, the original point is replaced by points that form circular arcs that are tangent to the original
@@ -162,8 +161,7 @@ def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN, already_
 
     :param iterable[indexable] points: a list of points forming the outline of the path to smooth.
     :param float radius: the radius of the circular arcs used to connect the straight segments.
-    :param int points_per_radian: the number of points per radian of arc; the default of 60 (about 1 per degree) is
-                                  usually enough.
+    :param float points_per_degree: the number of points per degree of arc; the default of 1 is usually enough.
     :param bool already_package_format: if True, skip the conversion of the points to package format (used internally
                                         by :class:`SmoothedSegment` to avoid double-conversion).
     :return: four lists with length equal to the number of bends (i.e., two less than the number of given points)
@@ -193,8 +191,9 @@ def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN, already_
             # The offset of the arc center relative to the corner
             offset = h * np.array([np.cos(theta), np.sin(theta)])
             # The absolute angles of the new points (at least two), using the absolute center as origin
-            arc_angles = (theta + np.pi + np.linspace(-bend_angle / 2, bend_angle / 2,
-                                                      int(np.ceil(np.abs(bend_angle) * points_per_radian) + 1)))
+            arc_angles = (theta + np.pi
+                          + np.linspace(-bend_angle / 2, bend_angle / 2,
+                                        int(np.ceil(np.degrees(np.abs(bend_angle)) * points_per_degree) + 1)))
             bend = [current + offset + radius * np.array([np.cos(phi), np.sin(phi)]) for phi in arc_angles]
             bends.append(bend)
             angles.append(bend_angle)
@@ -337,13 +336,13 @@ class Segment(object):
 class SmoothedSegment(Segment):
     """An element in a SegmentList that can draw itself into a cell, with corners smoothed using :func:`smooth`."""
 
-    def __init__(self, outline, radius, points_per_radian, round_to=None):
+    def __init__(self, outline, radius, points_per_degree, round_to=None):
         """The given outline points are passed to :func:`smooth` and the result is stored in the instance attributes
         :attr:`bends`, :attr:`angles`, :attr:`corners`, and :attr:`offsets`.
 
         :param iterable[indexable] outline: the outline points, before smoothing.
         :param float radius: the radius of the circular arcs used to connect the straight segments; see :func:`smooth`.
-        :param int points_per_radian: the number of points per radian of arc; see :func:`smooth`.
+        :param int points_per_degree: the number of points per degree of arc; see :func:`smooth`.
         :param round_to: if not None, the coordinates of each outline point are rounded to this value **before
                          smoothing**; useful for ensuring that all the points in a design lie on a grid larger than the
                          database unit size.
@@ -351,8 +350,8 @@ class SmoothedSegment(Segment):
         """
         super(SmoothedSegment, self).__init__(points=outline, round_to=round_to)
         self.radius = radius
-        self.points_per_radian = points_per_radian
-        self.bends, self.angles, self.corners, self.offsets = smooth(self._points, radius, points_per_radian,
+        self.points_per_degree = points_per_degree
+        self.bends, self.angles, self.corners, self.offsets = smooth(self._points, radius, points_per_degree,
                                                                      already_package_format=True)
 
     @property
