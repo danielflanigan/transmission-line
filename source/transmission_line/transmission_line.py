@@ -165,8 +165,8 @@ def smooth(points, radius, points_per_radian=DEFAULT_POINTS_PER_RADIAN, already_
     :param int points_per_radian: the number of points per radian of arc; the default of 60 (about 1 per degree) is
                                   usually enough.
     :param bool already_package_format: if True, skip the conversion of the points to package format (used internally
-                                        by :class:`SmoothedSegment` to avoid double-conversion.
-    :return: four lists with length equal to the number of bends (i.e. two less than the number of given points)
+                                        by :class:`SmoothedSegment` to avoid double-conversion).
+    :return: four lists with length equal to the number of bends (i.e., two less than the number of given points)
              that contain, for each bend, (1) a list of points in that bend, (2) the bend angle in radians, (3) the
              corner point  from the original list, and (4) the vector offset of the bend arc center relative to the
              corner point.
@@ -266,8 +266,8 @@ class SegmentList(list):
     def length(self):
         """The sum of the lengths of the Segments in this SegmentList.
 
-        This uses the `length` property of each individual Segment and does not check that the Segments are all
-        connected head-to-tail.
+        The calculation sums the `length` properties of all the Segments, and it does **not** check that the Segments
+        are all connected head-to-tail.
         """
         return np.sum([element.length for element in self])
 
@@ -328,9 +328,10 @@ class Segment(object):
         :param cell: the cell into which this segment will be drawn.
         :type cell: gdspy.Cell or None
         :param indexable origin: draw the segment relative to this point; the meaning depends on the segment type.
-        :return: None, but subclasses should return an iterable of the drawn structure(s).
+        :return: subclasses should return an iterable of the drawn structure(s).
+        :rtype: tuple
         """
-        pass
+        return ()
 
 
 class SmoothedSegment(Segment):
