@@ -5,8 +5,6 @@ The classes with name that start with 'Positive' draw the positive space, meanin
 The classes with names that start with 'Negative' draw the negative space, meaning that structures correspond to the
 absence of metal.
 """
-# ToDo: add any missing classes
-# ToDo: harmonize returned gdspy structure types: convert to PolygonSet or not?
 # ToDo: Don't force round_tip=True in elbow couplers
 from __future__ import absolute_import, division, print_function
 
@@ -286,8 +284,114 @@ class AbstractCPW(AbstractTransmissionLine):
 
 
 # ToDo: determine how to handle the multiple inheritance for AbstractCPW and SmoothedSegment
-# Classes that draw the negative space of CPW structures.
 
+
+class CPW(SmoothedSegment):
+    """A segment of co-planar waveguide.
+
+    Structures may represent either metal or its absence.
+    """
+
+    def __init__(self, outline, trace, gap, ground=None, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE,
+                 round_to=None, max_points=GDSII_POLYGON_MAX_POINTS):
+        """Instantiate without drawing any structures.
+
+        :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
+        :param float trace: the width of the center trace metal
+        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
+        :param ground: the width of the ground plane metal, which must be specified if these are to be drawn, but can be
+                       omitted (default) if only the negative space, the gaps, is to be drawn.
+        :type ground: float or None
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
+        :type radius: float or None
+        :param int points_per_radian: see :func:`smooth`.
+        :param float round_to: see :class:`SmoothedSegment`.
+        :param int max_points: drawn polygons with more than this number of points are fractured.
+        """
+        self.trace = trace
+        self.gap = gap
+        self.ground = ground
+        self.max_points = int(max_points)
+        if radius is None:
+            radius = trace + gap
+        super(PositiveCPW, self).__init__(outline=outline, radius=radius, points_per_radian=points_per_radian,
+                                          round_to=round_to)
+
+        def draw(self, cell, origin, layer=0, datatype=0, draw_trace=False, draw_gap=True, draw_ground=False):
+            """Draw the specified structure(s) into the given cell (if not None) and return a tuple of polygons.
+
+            The boolean keywords `trace`, `gap`, and `ground` can be used to draw any combination of the three possible
+            structures. For example, the default values of `trace=False`, `gap=True`, `ground=False` draws only the CPW
+            gaps, which represent absence of metal. To draw instead the structures that represent metal in a CPW with
+            specified ground planes, instantiate with `ground` not equal to None and draw using `trace=True`,
+            `gap=False`, `ground=True`.
+
+            :param cell: the cell into which to draw the structure, if not None.
+            :type cell: gdspy.Cell or None
+            :param point origin: the points of the drawn structure are relative to this point.
+            :param int layer: the layer on which to draw.
+            :param int datatype: the GDSII datatype.
+            :param bool draw_trace: if True, draw the center trace.
+            :param bool draw_gap: if True, draw the gaps.
+            :param bool draw_ground: if True, draw the ground planes; the instance must have been created with `ground`
+                                     equal to a number, not the default of None.
+            :return: the drawn structures, regardless of whether they were added to a cell.
+            :rtype: tuple[gdspy.PolygonSet]
+            """
+            points = [to_point(origin) + point for point in self.points]
+            if draw_trace and draw_gap and draw_ground:
+                polygons = (gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground,
+                                           max_points=self.max_points, layer=layer).to_polygonset(),)
+            elif draw_trace and draw_gap:
+                gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap,
+                                              max_points=self.max_points, layer=layer)
+                polygons = (gap_flexpath.to_polygonset(),)
+            elif draw_gap and draw_ground:
+                trace_flexpath = gdspy.FlexPath(points=points, width=self.trace)
+                ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground)
+                polygons = (gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=self.max_points,
+                                          layer=layer, datatype=datatype),)
+            elif draw_trace and draw_ground:  # Positive CPW
+                trace_flexpath = gdspy.FlexPath(points=points, width=self.trace)
+                gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap)
+                ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground)
+                negative_polygons = gdspy.boolean(gap_flexpath, trace_flexpath, 'not')
+                polygons = (gdspy.boolean(ground_flexpath, negative_polygons, 'not', max_points=self.max_points,
+                                          layer=layer, datatype=datatype),)
+            elif draw_trace:
+                trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=self.max_points,
+                                                layer=layer)
+                polygons = (trace_flexpath.to_polygonset(),)
+            elif draw_gap:  # Negative CPW, the default
+                trace_flexpath = gdspy.FlexPath(points=points, width=self.trace)
+                gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap)
+                polygons = (gdspy.boolean(ground_flexpath, negative_polygon_set, 'not', max_points=self.max_points,
+                                          layer=layer, datatype=datatype),)
+            elif draw_ground:
+                gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap)
+                ground_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap + 2 * self.ground)
+                polygons = (gdspy.boolean(ground_flexpath, negative_polygon_set, 'not', max_points=self.max_points,
+                                          layer=layer, datatype=datatype),)
+            else:  # Draw nothing
+                polygons = ()
+            if cell is not None:
+                for polygon in polygons:
+                    cell.add(element=polygons)
+            return polygons
+
+
+# ToDo: finish these
+class CPWElbowCoupler(SmoothedSegment):
+    pass
+
+
+class CPWTransition(Segment):
+    pass
+
+
+# ToDo: delete all below when drawing code has been copied
+
+# Classes that draw the negative space of CPW structures.
 class NegativeCPW(SmoothedSegment):
     """The negative space of a segment of co-planar waveguide: structures are absence of metal."""
 
@@ -1235,5 +1339,3 @@ class PositiveCPWTransitionDummy(PositiveCPWTransition):
     def draw(self, cell, origin, layer, datatype=0):
         """Draw nothing and return nothing."""
         pass
-
-
