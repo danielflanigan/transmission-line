@@ -329,6 +329,45 @@ class NegativeCPW(SmoothedSegment):
         return polygon_set
 
 
+class NegativeCPWDummy(SmoothedSegment):
+    """Placeholder for negative co-planar waveguide: does not draw any structures.
+
+    This class does not draw anything so it is useful only as a placeholder or in a :class:`SegmentList` when
+    structures are on multiple layers or have multiple datatypes.
+    """
+
+    def __init__(self, outline, trace, gap, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+        """Instantiate without drawing in any cell.
+
+        :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
+        :param float trace: the width of the center trace.
+        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
+        :type radius: float or None
+        :param int points_per_degree: see :func:`smooth`.
+        :param float round_to: see :class:`SmoothedSegment`.
+        """
+        self.trace = trace
+        self.gap = gap
+        if radius is None:
+            radius = trace + gap
+        super(NegativeCPWDummy, self).__init__(outline=outline, radius=radius, points_per_degree=points_per_degree,
+                                               round_to=round_to)
+
+    def draw(self, cell, origin, layer, datatype=0):
+        """Draw nothing and return nothing.
+
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
+        :param point origin: the points of the drawn structure are relative to this point.
+        :param int layer: the layer on which to draw.
+        :param int datatype: the GDSII datatype.
+        :return: the object that was drawn into the cell.
+        :rtype: gdspy.PolygonSet
+        """
+        pass
+
+
 class NegativeCPWBlank(SmoothedSegment):
     """Negative co-planar waveguide with the center trace missing, that is, the negative space of the trace and gaps:
     structures are absence of metal.
