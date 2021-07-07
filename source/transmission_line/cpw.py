@@ -304,7 +304,7 @@ class CPW(SmoothedSegment):
         :type ground: float or None
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_radian: see :func:`smooth`.
+        :param float points_per_degree: see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         :param int max_points: drawn polygons with more than this number of points are fractured.
         """
@@ -320,11 +320,11 @@ class CPW(SmoothedSegment):
         def draw(self, cell, origin, layer=0, datatype=0, draw_trace=False, draw_gap=True, draw_ground=False):
             """Draw the specified structure(s) into the given cell (if not None) and return a tuple of polygons.
 
-            The boolean keywords `trace`, `gap`, and `ground` can be used to draw any combination of the three possible
-            structures. For example, the default values of `trace=False`, `gap=True`, `ground=False` draws only the CPW
-            gaps, which represent absence of metal. To draw instead the structures that represent metal in a CPW with
-            specified ground planes, instantiate with `ground` not equal to None and draw using `trace=True`,
-            `gap=False`, `ground=True`.
+            The boolean keywords `draw_trace`, `draw_gap`, and `draw_ground` can be used to draw any combination of
+            the three possible structures. For example, the default values of `draw_trace=False`, `draw_gap=True`,
+            `draw_ground=False` draws only the CPW gaps, which in this case represent absence of metal. To draw
+            instead the structures that represent metal in a CPW with specified ground planes, instantiate with
+            `ground` not equal to None and draw using `draw_trace=True`, `draw_gap=False`, `draw_ground=True`.
 
             :param cell: the cell into which to draw the structure, if not None.
             :type cell: gdspy.Cell or None
