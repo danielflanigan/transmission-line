@@ -5,9 +5,9 @@ The classes with name that start with 'Positive' draw the positive space, meanin
 The classes with names that start with 'Negative' draw the negative space, meaning that structures correspond to the
 absence of metal.
 """
-# ToDo: add other Positive Blank classes
+# ToDo: add any missing classes
 # ToDo: harmonize returned gdspy structure types: convert to PolygonSet or not?
-# ToD: Don't force round_tip=True in elbow couplers
+# ToDo: Don't force round_tip=True in elbow couplers
 from __future__ import absolute_import, division, print_function
 
 import gdspy
@@ -15,8 +15,8 @@ import numpy as np
 from scipy.constants import c, epsilon_0, mu_0, pi
 from scipy.special import ellipk
 
-from transmission_line.transmission_line import (DEFAULT_POINTS_PER_DEGREE, to_point, AbstractTransmissionLine, Segment,
-                                                 SmoothedSegment)
+from transmission_line.transmission_line import (DEFAULT_POINTS_PER_DEGREE, GDSII_POLYGON_MAX_POINTS, to_point,
+                                                 AbstractTransmissionLine, Segment, SmoothedSegment)
 
 
 def half_capacitance_per_unit_length_zero_thickness(trace, gap, dielectric_constant):
@@ -299,8 +299,9 @@ class NegativeCPW(SmoothedSegment):
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, outline points are rounded to this value; see :class:`SmoothedSegment`.
+        :type round_to: float or None
         """
         self.trace = trace
         self.gap = gap
@@ -344,8 +345,9 @@ class NegativeCPWDummy(SmoothedSegment):
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, outline points are rounded to this value; see :class:`SmoothedSegment`.
+        :type round_to: float or None
         """
         self.trace = trace
         self.gap = gap
@@ -384,8 +386,9 @@ class NegativeCPWBlank(SmoothedSegment):
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, outline points are rounded to this value; see :class:`SmoothedSegment`.
+        :type round_to: float or None
         """
         self.trace = trace
         self.gap = gap
@@ -413,12 +416,77 @@ class NegativeCPWBlank(SmoothedSegment):
         return path_set
 
 
-class NegativeCPWElbowCoupler(SmoothedSegment):
-    """Negative co-planar waveguide elbow coupler: structures are absence of metal."""
+class NegativeCPWRoundedOpen(Segment):
+    """Negative co-planar waveguide rounded open: structures are absence of metal.
+
+    This class draws a straight segment of CPW with an rounded open at one end, which adds an amount of length equal
+    to the width of the trace.
+    """
+
+    def __init__(self, start_point, end_point, trace, gap, round_to=None, open_at_end=True):
+        """Instantiate without drawing in any cell. The points of this Segment are [start_point, end_point].
+
+        :param point start_point: the start of the segment.
+        :param point end_point: the end of the segment.
+        :param float trace: the width of the center trace.
+        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
+        :param round_to: if not None, start and end points are rounded to this value; see :class:`Segment`.
+        :type round_to: float or None
+        :param bool open_at_end: if True (default), the open is at the end; if False, it is at the start.
+        """
+        self.trace = trace
+        self.gap = gap
+        self.open_at_end = open_at_end
+        super(NegativeCPWRoundedOpen, self).__init__(points=[start_point, end_point], round_to=round_to)
+
+    def draw(self, cell, origin, layer, datatype=0):
+        """Draw this structure into the given cell and return a polygon set.
+
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
+        :param point origin: the points of the drawn structure are relative to this point.
+        :param int layer: the layer on which to draw.
+        :param int datatype: the GDSII datatype.
+        :return: the drawn structure.
+        :rtype: gdspy.PolygonSet
+        """
+        points = [to_point(origin) + point for point in self.points]
+        trace_flexpath = gdspy.FlexPath(points=points, width=self.trace).to_polygonset()
+        gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap).to_polygonset()
+        if self.open_at_end:
+            initial, final = points
+        else:
+            final, initial = points
+        v = final - initial  # This vector points toward the open end
+        theta = np.arctan2(v[1], v[0])
+        outer_round = gdspy.Round(center=final, radius=self.trace / 2 + self.gap, initial_angle=theta - np.pi / 2,
+                                  final_angle=theta + np.pi / 2)
+        inner_round = gdspy.Round(center=final, radius=self.trace / 2, initial_angle=theta - np.pi / 2,
+                                  final_angle=theta + np.pi / 2)
+        result = gdspy.boolean([gap_flexpath, outer_round], [trace_flexpath, inner_round], 'not',
+                               max_points=GDSII_POLYGON_MAX_POINTS, layer=layer, datatype=datatype)
+        if cell is not None:
+            cell.add(element=result)
+        return result
+
+    @property
+    def length(self):
+        """The rounded cap adds length equal to half the center trace width."""
+        return super(NegativeCPWRoundedOpen, self).length + self.trace / 2
+
+
+# ToDo: update
+class NegativeCPWRoundedOpenBlank(SmoothedSegment):
+    """Negative co-planar waveguide rounded open with the center trace missing, that is, the union of the
+    trace and gaps: structures are absence of metal.
+
+    This class draws a single polygon that is the union of the trace and gaps. This is useful when the trace is on
+    another layer or has a different datatype. The interface is the same as :class:`NegativeCPWRoundedOpen` for
+    compatibility.
+    """
 
     def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None,
-                 points_per_degree=DEFAULT_POINTS_PER_DEGREE,
-                 round_to=None):
+                 points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
         """Instantiate without drawing in any cell.
 
         :param point tip_point: the open end of the coupler; the first point of the segment.
@@ -430,8 +498,66 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, start and end points are rounded to this value; see :class:`Segment`.
+        :type round_to: float or None
+        """
+        self.trace = trace
+        self.gap = gap
+        if radius is None:
+            radius = trace + gap
+        super(NegativeCPWElbowCouplerBlank, self).__init__(outline=[tip_point, elbow_point, joint_point], radius=radius,
+                                                           points_per_degree=points_per_degree, round_to=round_to)
+
+    def draw(self, cell, origin, layer, datatype=0, round_tip=True):
+        """Draw this structure into the given cell and return the drawn polygon set, which should contain two polygons.
+
+        :param cell: the cell into which to draw the structure, if not None.
+        :type cell: gdspy.Cell or None
+        :param point origin: the points of the drawn structure are relative to this point.
+        :param int layer: the layer on which to draw.
+        :param int datatype: the GDSII datatype.
+        :param bool round_tip: currently must be True, meaning that the tip that is the start of the path is rounded.
+        :return: the path and tip arc that were drawn into the cell.
+        :rtype: tuple[gdspy.PolygonSet]
+        """
+        points = [to_point(origin) + point for point in self.points]
+        path_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, layer=layer, datatype=datatype,
+                                  max_points=0, gdsii_path=False).to_polygonset()
+        if cell is not None:
+            cell.add(element=path_set)
+
+        if round_tip:
+            v = points[0] - points[1]
+            theta = np.arctan2(v[1], v[0])
+            round_set = gdspy.Round(center=points[0], radius=self.trace / 2 + self.gap, initial_angle=theta - np.pi / 2,
+                                    final_angle=theta + np.pi / 2, max_points=0, layer=layer, datatype=datatype)
+            if cell is not None:
+                cell.add(element=round_set)
+        else:
+            raise NotImplementedError("Need to code this up.")
+        return path_set, round_set
+
+
+class NegativeCPWElbowCoupler(SmoothedSegment):
+    """Negative co-planar waveguide elbow coupler: structures are absence of metal."""
+
+    def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None,
+                 points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+        """Instantiate without drawing in any cell.
+
+        :param point tip_point: the open end of the coupler; the first point of the segment.
+        :param point elbow_point: the point where the coupler turns away from the feedline; the middle point of the
+                                  segment.
+        :param point joint_point: the point where the coupler joins the rest of the transmission line; the last point of
+                                  the segment.
+        :param float trace: the width of the center trace.
+        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
+        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
+        :type radius: float or None
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, outline points are rounded to this value; see :class:`SmoothedSegment`.
+        :type round_to: float or None
         """
         self.trace = trace
         self.gap = gap
@@ -495,8 +621,9 @@ class NegativeCPWElbowCouplerBlank(SmoothedSegment):
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, outline points are rounded to this value; see :class:`SmoothedSegment`.
+        :type round_to: float or None
         """
         self.trace = trace
         self.gap = gap
@@ -552,7 +679,8 @@ class NegativeCPWTransition(Segment):
         :param end_point: the end point of the transition, typically the start point of the following section.
         :param end_trace: the trace width of the following section.
         :param end_gap: the gap width of the following section.
-        :param round_to: see :class:`Segment`.
+        :param round_to: if not None, start and end points are rounded to this value; see :class:`Segment`.
+        :type round_to: float or None
         """
         super(NegativeCPWTransition, self).__init__(points=[start_point, end_point], round_to=round_to)
         self.start_trace = start_trace
@@ -613,7 +741,8 @@ class NegativeCPWTransitionBlank(Segment):
         :param end_point: the end point of the transition, typically the start point of the following section.
         :param end_trace: the trace width of the following section.
         :param end_gap: the gap width of the following section.
-        :param round_to: see :class:`Segment`.
+        :param round_to: if not None, start and end points are rounded to this value; see :class:`Segment`.
+        :type round_to: float or None
         """
         super(NegativeCPWTransitionBlank, self).__init__(points=[start_point, end_point], round_to=round_to)
         self.start_trace = start_trace
@@ -663,8 +792,9 @@ class PositiveCPW(SmoothedSegment):
         :param float ground: the width of the ground planes.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, outline points are rounded to this value; see :class:`SmoothedSegment`.
+        :type round_to: float or None
         """
         self.trace = trace
         self.gap = gap
@@ -826,8 +956,9 @@ class PositiveCPWElbowCoupler(SmoothedSegment):
         :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, outline points are rounded to this value; see :class:`SmoothedSegment`.
+        :type round_to: float or None
         """
         self.trace = trace
         self.gap = gap
@@ -973,7 +1104,8 @@ class PositiveCPWTransition(Segment):
         :param end_trace: the trace width of the following section.
         :param end_gap: the gap width of the following section.
         :param end_ground: the width of both of the ground planes of the following section.
-        :param round_to: see :class:`Segment`.
+        :param round_to: if not None, start and end points are rounded to this value; see :class:`Segment`.
+        :type round_to: float or None
         """
         super(PositiveCPWTransition, self).__init__(points=[start_point, end_point], round_to=round_to)
         self.start_trace = start_trace
