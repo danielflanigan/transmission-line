@@ -15,14 +15,28 @@ from matplotlib.font_manager import FontProperties
 from matplotlib.textpath import TextPath
 import numpy as np
 
-# This is the maximum number of points in a polygon allowed by the GDSII specification (or nearly the maximum).
-GDSII_POLYGON_MAX_POINTS = 8190
+# The maximum number of polygon vertices in the original GDSII specification is 200. This is the (conservative) default
+# value used by gdspy.
+SAFE_GDSII_POLYGON_POINTS = 199
+# The maximum number of polygon vertices allowed by the GDSII file structure is 8191. Some GDSII readers may open files
+# that contain more points, but, anecdotally, some will fail to load such designs. This value is the package default.
+MAX_GDSII_POLYGON_POINTS = 8190
+# Both of the limits above are one less than the maximum, possibly because the vertex that closes the polygon is stored
+# in the file but does not have to be passed to gdspy, which closes polygons automatically.
 
-# This is the number of points per degree of arc, used by :func:`smooth`.
-DEFAULT_POINTS_PER_DEGREE = 1
+# The value below is the default used when drawing polygons throughout this package.
+MAX_POINTS = MAX_GDSII_POLYGON_POINTS
+# It can be changed for a single `draw` call by passing a different value of `max_points` or it can be changed globally:
+# from transmission_line import transmission_line as tl
+# tl.MAX_POINTS = tl.SAFE_GDSII_POLYGON_POINTS  # For use with old GDSII readers
+# tl.MAX_POINTS = 0  # gdspy treats 0 as infinity, and will not fracture polygons to reduce the number of vertices.
+
+
+# This is the default number of points per degree of arc used by :func:`smooth` to bend transmission lines.
+POINTS_PER_DEGREE = 1
 
 # These are the default font properties used by :func:`polygon_text`, which renders text with matplotlib.
-DEFAULT_FONT_PROPERTIES = {
+FONT_PROPERTIES = {
     'family': 'sans-serif',
     'style': 'normal'
 }
@@ -70,7 +84,6 @@ def from_increments(increments, origin=(0, 0)):
     return points
 
 
-# ToDo: merge the two functions below
 def polygon_text(text, size, position, layer=0, datatype=0, font_properties=None, tolerance=0.1):
     """Return the given text as polygons.
 
@@ -83,17 +96,19 @@ def polygon_text(text, size, position, layer=0, datatype=0, font_properties=None
     :param indexable position: the coordinates are (left_edge, baseline), so the text may descend below the baseline.
     :param int layer: the GDSII layer.
     :param int datatype: the GDSII datatype.
-    :param font_properties: if None, use :attr:`DEFAULT_FONT_PROPERTIES` in this module; if dict, update these defaults;
+    :param font_properties: if None, use :attr:`FONT_PROPERTIES` in this module; if dict, update these defaults;
                             see :module:`matplotlib.font_manager` for valid keys.
     :type font_properties: dict or None
-    :param float tolerance: this has something to do with the number of points used to draw the polygon.
+    :param float tolerance: this has something to do with the number of points used to draw the polygon; the default
+                            seems fine.
     :return: polygons representing the text.
     :rtype: gdspy.PolygonSet
     """
-    fp = DEFAULT_FONT_PROPERTIES.copy()
+    fp = FONT_PROPERTIES.copy()
     if font_properties is not None:
         fp.update(font_properties)
-    polygons = _render_text(text=text, size=size, position=position, font_prop=FontProperties(**fp), tolerance=tolerance)
+    polygons = _render_text(text=text, size=size, position=position, font_prop=FontProperties(**fp),
+                            tolerance=tolerance)
     return gdspy.PolygonSet(polygons=polygons, layer=layer, datatype=datatype)
 
 
@@ -118,7 +133,7 @@ def _render_text(text, size=None, position=(0, 0), font_prop=None, tolerance=0.1
                     i = len(polys) - 1
                     while i >= 0:
                         if gdspy.inside(
-                            poly[:1], [polys[i]], precision=0.1 * tolerance
+                                poly[:1], [polys[i]], precision=0.1 * tolerance
                         )[0]:
                             p = polys.pop(i)
                             poly = gdspy.boolean(
@@ -130,7 +145,7 @@ def _render_text(text, size=None, position=(0, 0), font_prop=None, tolerance=0.1
                             ).polygons[0]
                             break
                         elif gdspy.inside(
-                            polys[i][:1], [poly], precision=0.1 * tolerance
+                                polys[i][:1], [poly], precision=0.1 * tolerance
                         )[0]:
                             p = polys.pop(i)
                             poly = gdspy.boolean(
@@ -147,7 +162,7 @@ def _render_text(text, size=None, position=(0, 0), font_prop=None, tolerance=0.1
 
 
 # ToDo: warn if consecutive points are too close together to bend properly.
-def smooth(points, radius, points_per_degree=DEFAULT_POINTS_PER_DEGREE, already_package_format=False):
+def smooth(points, radius, points_per_degree=POINTS_PER_DEGREE, already_package_format=False):
     """Return a list of smoothed points constructed by adding points to change the given corners into circular arcs.
 
     At each corner, the original point is replaced by points that form circular arcs that are tangent to the original

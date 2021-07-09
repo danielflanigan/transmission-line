@@ -15,8 +15,8 @@ import numpy as np
 from scipy.constants import c, epsilon_0, mu_0, pi
 from scipy.special import ellipk
 
-from transmission_line.transmission_line import (DEFAULT_POINTS_PER_DEGREE, GDSII_POLYGON_MAX_POINTS, to_point,
-                                                 AbstractTransmissionLine, Segment, SmoothedSegment)
+from transmission_line.transmission_line import (POINTS_PER_DEGREE, MAX_POINTS, to_point, AbstractTransmissionLine,
+                                                 Segment, SmoothedSegment)
 
 
 def half_capacitance_per_unit_length_zero_thickness(trace, gap, dielectric_constant):
@@ -291,7 +291,7 @@ class AbstractCPW(AbstractTransmissionLine):
 class NegativeCPW(SmoothedSegment):
     """The negative space of a segment of co-planar waveguide: structures are absence of metal."""
 
-    def __init__(self, outline, trace, gap, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+    def __init__(self, outline, trace, gap, radius=None, points_per_degree=POINTS_PER_DEGREE, round_to=None):
         """Instantiate without drawing in any cell.
 
         :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
@@ -337,7 +337,7 @@ class NegativeCPWDummy(SmoothedSegment):
     structures are on multiple layers or have multiple datatypes.
     """
 
-    def __init__(self, outline, trace, gap, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+    def __init__(self, outline, trace, gap, radius=None, points_per_degree=POINTS_PER_DEGREE, round_to=None):
         """Instantiate without drawing in any cell.
 
         :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
@@ -378,7 +378,7 @@ class NegativeCPWBlank(SmoothedSegment):
     another layer or has a different datatype. The interface is the same as :class:`CPW` for compatibility.
     """
 
-    def __init__(self, outline, trace, gap, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+    def __init__(self, outline, trace, gap, radius=None, points_per_degree=POINTS_PER_DEGREE, round_to=None):
         """Instantiate without drawing in any cell.
 
         :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
@@ -464,7 +464,7 @@ class NegativeCPWRoundedOpen(Segment):
         inner_round = gdspy.Round(center=final, radius=self.trace / 2, initial_angle=theta - np.pi / 2,
                                   final_angle=theta + np.pi / 2)
         result = gdspy.boolean([gap_flexpath, outer_round], [trace_flexpath, inner_round], 'not',
-                               max_points=GDSII_POLYGON_MAX_POINTS, layer=layer, datatype=datatype)
+                               max_points=MAX_POINTS, layer=layer, datatype=datatype)
         if cell is not None:
             cell.add(element=result)
         return result
@@ -486,7 +486,7 @@ class NegativeCPWRoundedOpenBlank(SmoothedSegment):
     """
 
     def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None,
-                 points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+                 points_per_degree=POINTS_PER_DEGREE, round_to=None):
         """Instantiate without drawing in any cell.
 
         :param point tip_point: the open end of the coupler; the first point of the segment.
@@ -543,7 +543,7 @@ class NegativeCPWElbowCoupler(SmoothedSegment):
     """Negative co-planar waveguide elbow coupler: structures are absence of metal."""
 
     def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None,
-                 points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+                 points_per_degree=POINTS_PER_DEGREE, round_to=None):
         """Instantiate without drawing in any cell.
 
         :param point tip_point: the open end of the coupler; the first point of the segment.
@@ -609,7 +609,7 @@ class NegativeCPWElbowCouplerBlank(SmoothedSegment):
     """
 
     def __init__(self, tip_point, elbow_point, joint_point, trace, gap, radius=None,
-                 points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+                 points_per_degree=POINTS_PER_DEGREE, round_to=None):
         """Instantiate without drawing in any cell.
 
         :param point tip_point: the open end of the coupler; the first point of the segment.
@@ -782,7 +782,7 @@ class NegativeCPWTransitionBlank(Segment):
 class PositiveCPW(SmoothedSegment):
     """Positive co-planar waveguide with finite ground planes: structures are metal."""
 
-    def __init__(self, outline, trace, gap, ground, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE,
+    def __init__(self, outline, trace, gap, ground, radius=None, points_per_degree=POINTS_PER_DEGREE,
                  round_to=None):
         """Instantiate without drawing in any cell.
 
@@ -944,7 +944,7 @@ class PositiveCPWElbowCoupler(SmoothedSegment):
     """
 
     def __init__(self, tip_point, elbow_point, joint_point, trace, gap, ground, strip, radius=None,
-                 points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+                 points_per_degree=POINTS_PER_DEGREE, round_to=None):
         """Instantiate without drawing in any cell.
 
         :param point tip_point: the open end of the coupler; the first point of the segment.

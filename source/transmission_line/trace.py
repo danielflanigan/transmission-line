@@ -8,7 +8,7 @@ from __future__ import absolute_import, division, print_function
 import gdspy
 import numpy as np
 
-from transmission_line.transmission_line import (DEFAULT_POINTS_PER_DEGREE, GDSII_POLYGON_MAX_POINTS, Segment,
+from transmission_line.transmission_line import (POINTS_PER_DEGREE, MAX_POINTS, Segment,
                                                  SmoothedSegment, smooth, to_point)
 
 
@@ -20,7 +20,7 @@ class Trace(SmoothedSegment):
     """
 
     def __init__(self, outline, trace, start_overlap=0, end_overlap=0, radius=None,
-                 points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
+                 points_per_degree=POINTS_PER_DEGREE, round_to=None):
         """
         :param iterable[indexable] outline: the outline points, before smoothing; see :class:`SmoothedSegment`.
         :param float trace: the width of the trace.
@@ -28,7 +28,7 @@ class Trace(SmoothedSegment):
         :param float end_overlap: the overlap length at the end.
         :param radius: if None, use twice the width; see :func:`smooth`.
         :type radius: float or None
-        :param float points_per_degree: the default is DEFAULT_POINTS_PER_DEGREE; see :func:`smooth`.
+        :param float points_per_degree: the default is POINTS_PER_DEGREE; see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
         self.trace = trace
@@ -39,7 +39,7 @@ class Trace(SmoothedSegment):
         super(Trace, self).__init__(outline=outline, radius=radius, points_per_degree=points_per_degree,
                                     round_to=round_to)
 
-    def draw(self, cell, origin, layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, gdsii_path=False):
+    def draw(self, cell, origin, layer=0, datatype=0, max_points=MAX_POINTS, gdsii_path=False):
         """Draw this trace into the given cell as a GDSII polygon (or path) and return the drawn object.
 
         By default, :class:`gdspy.FlexPath` draws a polygon; to draw a path, pass `gdsii_path=True`. The overlap
@@ -69,7 +69,7 @@ class Trace(SmoothedSegment):
 class TraceBlank(Trace):
     """A placeholder for a single wire that draws nothing."""
 
-    def draw(self, cell, origin, layer=0, datatype=0, max_points=GDSII_POLYGON_MAX_POINTS, gdsii_path=False):
+    def draw(self, cell, origin, layer=0, datatype=0, max_points=MAX_POINTS, gdsii_path=False):
         """Draw nothing and return nothing."""
         pass
 
