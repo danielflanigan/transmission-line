@@ -289,7 +289,8 @@ class AbstractCPW(AbstractTransmissionLine):
 class CPW(SmoothedSegment):
     """A segment of co-planar waveguide.
 
-    Structures may represent either metal or its absence.
+    Structures may represent either metal or its absence. Boolean keywords control which structures are drawn from among
+    the trace, the gaps, and the ground planes.
     """
 
     def __init__(self, outline, trace, gap, ground=None, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE,
@@ -304,9 +305,10 @@ class CPW(SmoothedSegment):
         :type ground: float or None
         :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
         :type radius: float or None
-        :param int points_per_radian: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
-        :param int max_points: drawn polygons with more than this number of points are fractured.
+        :param float points_per_degree: see :func:`smooth`.
+        :param round_to: if not None, outline points are rounded to this value; see :class:`SmoothedSegment`.
+        :type round_to: float or None
+        :param int max_points: drawn polygons with more than this many points are fractured.
         """
         self.trace = trace
         self.gap = gap
@@ -320,11 +322,11 @@ class CPW(SmoothedSegment):
         def draw(self, cell, origin, layer=0, datatype=0, draw_trace=False, draw_gap=True, draw_ground=False):
             """Draw the specified structure(s) into the given cell (if not None) and return a tuple of polygons.
 
-            The boolean keywords `trace`, `gap`, and `ground` can be used to draw any combination of the three possible
-            structures. For example, the default values of `trace=False`, `gap=True`, `ground=False` draws only the CPW
-            gaps, which represent absence of metal. To draw instead the structures that represent metal in a CPW with
-            specified ground planes, instantiate with `ground` not equal to None and draw using `trace=True`,
-            `gap=False`, `ground=True`.
+            The boolean keywords `draw_trace`, `draw_gap`, and `draw_ground` can be used to draw any combination of
+            the three possible structures. For example, the default values of `draw_trace=False`, `draw_gap=True`,
+            `draw_ground=False` draws only the CPW gaps, which represent absence of metal. To draw instead the
+            structures that represent metal in a CPW with specified ground planes, instantiate with `draw_ground` not
+            equal to None and draw using `draw_trace=True`, `draw_gap=False`, `draw_ground=True`.
 
             :param cell: the cell into which to draw the structure, if not None.
             :type cell: gdspy.Cell or None
@@ -385,98 +387,94 @@ class CPWElbowCoupler(SmoothedSegment):
     pass
 
 
-class CPWTransition(Segment):
+class CPWRoundedOpen(Segment):
     pass
 
 
-# ToDo: delete all below when drawing code has been copied
+class CPWTransition(Segment):
+    """Transition between two sections of co-planar waveguide.
 
-# Classes that draw the negative space of CPW structures.
-class NegativeCPW(SmoothedSegment):
-    """The negative space of a segment of co-planar waveguide: structures are absence of metal."""
-
-    def __init__(self, outline, trace, gap, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
-        """Instantiate without drawing in any cell.
-
-        :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
-        :param float trace: the width of the center trace.
-        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
-        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
-        :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
-        """
-        self.trace = trace
-        self.gap = gap
-        if radius is None:
-            radius = trace + gap
-        super(NegativeCPW, self).__init__(outline=outline, radius=radius, points_per_degree=points_per_degree,
-                                          round_to=round_to)
-
-    def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the drawn polygon set, which should contain two polygons.
-
-        :param cell: the cell into which to draw the structure, if not None.
-        :type cell: gdspy.Cell or None
-        :param point origin: the points of the drawn structure are relative to this point.
-        :param int layer: the layer on which to draw.
-        :param int datatype: the GDSII datatype.
-        :return: the object that was drawn into the cell.
-        :rtype: gdspy.PolygonSet
-        """
-        points = [to_point(origin) + point for point in self.points]
-        trace_flexpath = gdspy.FlexPath(points=points, width=self.trace, max_points=0, gdsii_path=False)
-        gap_flexpath = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, max_points=0, gdsii_path=False)
-        polygon_set = gdspy.boolean(gap_flexpath, trace_flexpath, 'not', max_points=0, layer=layer, datatype=datatype)
-        if cell is not None:
-            cell.add(element=polygon_set)
-        return polygon_set
-
-
-class NegativeCPWBlank(SmoothedSegment):
-    """Negative co-planar waveguide with the center trace missing, that is, the negative space of the trace and gaps:
-    structures are absence of metal.
-
-    This class draws a single FlexPath that is the union of the trace and gaps. This is useful when the trace is on
-    another layer or has a different datatype. The interface is the same as :class:`CPW` for compatibility.
+    The points of this structure are [start_point, end_point].
     """
 
-    def __init__(self, outline, trace, gap, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE, round_to=None):
-        """Instantiate without drawing in any cell.
+    def __init__(self, start_point, start_trace, start_gap, end_trace, end_point, end_gap, round_to=None):
+        """Instantiate without drawing any structures.
 
-        :param outline: the vertices of the CPW path, before smoothing; see :func:`smooth`.
-        :param float trace: the width of the center trace.
-        :param float gap: the width of the gaps on each side of the center trace between it and the ground planes.
-        :param radius: the default bend radius is the sum of the trace and gap widths; see :func:`smooth`.
-        :type radius: float or None
-        :param int points_per_degree: see :func:`smooth`.
-        :param float round_to: see :class:`SmoothedSegment`.
+        :param point start_point: the start point of the transition, typically (0, 0), so that it will be connected to
+                                  the previous Segment.
+        :param start_trace: the trace width of the previous Segment.
+        :param start_gap: the gap width of the previous Segment.
+        :param end_point: the end point of the transition.
+        :param end_trace: the trace width of the following Segment.
+        :param end_gap: the gap width of the following Segment.
+        :param round_to: if not None, start and end points are rounded to this value; see :class:`Segment`.
+        :type round_to: float or None
         """
-        self.trace = trace
-        self.gap = gap
-        if radius is None:
-            radius = trace + gap
-        super(NegativeCPWBlank, self).__init__(outline=outline, radius=radius, points_per_degree=points_per_degree,
-                                               round_to=round_to)
+        super(NegativeCPWTransition, self).__init__(points=[start_point, end_point], round_to=round_to)
+        self.start_trace = start_trace
+        self.start_gap = start_gap
+        self.end_trace = end_trace
+        self.end_gap = end_gap
 
-    def draw(self, cell, origin, layer, datatype=0):
-        """Draw this structure into the given cell and return the drawn polygon set, which should contain one polygon.
+    def draw(self, cell, origin, layer=0, datatype=0, draw_trace=False, draw_gap=True, draw_ground=False):
+        """Draw the specified structure(s) into the given cell (if not None) and return a tuple of polygons.
+
+        The boolean keywords `draw_trace`, `draw_gap`, and `draw_ground` can be used to draw any combination of
+        the three possible structures. For example, the default values of `draw_trace=False`, `draw_gap=True`,
+        `draw_ground=False` draws only the CPW gaps, which represent absence of metal. To draw instead the
+        structures that represent metal in a CPW with specified ground planes, instantiate with `draw_ground` not
+        equal to None and draw using `draw_trace=True`, `draw_gap=False`, `draw_ground=True`.
 
         :param cell: the cell into which to draw the structure, if not None.
         :type cell: gdspy.Cell or None
         :param point origin: the points of the drawn structure are relative to this point.
         :param int layer: the layer on which to draw.
         :param int datatype: the GDSII datatype.
-        :return: the object that was drawn into the cell.
-        :rtype: gdspy.PolygonSet
+        :param bool draw_trace: if True, draw the center trace.
+        :param bool draw_gap: if True, draw the gaps.
+        :param bool draw_ground: if True, draw the ground planes; the instance must have been created with `ground`
+                                 equal to a number, not the default of None.
+        :return: the drawn structures, regardless of whether they were added to a cell.
+        :rtype: tuple[gdspy.PolygonSet]
         """
-        points = [to_point(origin) + point for point in self.points]
-        path_set = gdspy.FlexPath(points=points, width=self.trace + 2 * self.gap, layer=layer, datatype=datatype,
-                                  max_points=0, gdsii_path=False).to_polygonset()
-        if cell is not None:
-            cell.add(element=path_set)
-        return path_set
+        v = self.end - self.start
+        phi = np.arctan2(v[1], v[0])
+        rotation = np.array([[np.cos(phi), -np.sin(phi)],
+                             [np.sin(phi), np.cos(phi)]])
+        # Draw the selected structures
+        if draw_trace and draw_gap and draw_ground:
+            pass
+        elif draw_trace and draw_gap:
+            pass
+        elif draw_gap and draw_ground:
+            pass
+        elif draw_trace and draw_ground:  # Positive CPW
+            pass
+        elif draw_trace:
+            pass
+        elif draw_gap:  # Negative CPW, the default
+            upper = [(0, self.start_trace / 2),
+                     (0, self.start_trace / 2 + self.start_gap),
+                     (self.length, self.end_trace / 2 + self.end_gap),
+                     (self.length, self.end_trace / 2)]
+            lower = [(x, -y) for x, y in upper]
+            initial = (upper, lower)
+        elif draw_ground:
+            pass
+        else:  # Draw nothing
+            initial = tuple()
 
+        point_lists = list()
+        for i in initial:
+            point_lists.append([to_point(origin) + self.start + np.dot(rotation, to_point(p).T).T for p in i])
+        polygons = tuple([gdspy.Polygon(points=points, layer=layer, datatype=datatype) for points in point_lists])
+        if cell is not None:
+            for polygon in polygons:
+                cell.add(element=polygons)
+        return polygons
+
+
+# ToDo: delete all below when drawing code has been copied
 
 class NegativeCPWElbowCoupler(SmoothedSegment):
     """Negative co-planar waveguide elbow coupler: structures are absence of metal."""
