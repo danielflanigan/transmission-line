@@ -263,12 +263,12 @@ class SegmentList(list):
 
     @property
     def start(self):
-        """The start point of the SegmentList."""
+        """The start point of the first element in this SegmentList, assuming its origin is (0, 0)."""
         return self[0].start
 
     @property
     def end(self):
-        """The end point of the SegmentList."""
+        """The end point of the last element in this SegmentList, assuming its origin is (0, 0)."""
         return np.sum(np.vstack([element.end for element in self]), axis=0)
 
     @property
@@ -284,6 +284,39 @@ class SegmentList(list):
         are all connected head-to-tail.
         """
         return np.sum([element.length for element in self])
+
+    @property
+    def points(self):
+        """Return a list of lists each containing the points of one Segment in this SegmentList.
+
+        The calculation assumes that the first element starts at (0, 0) and that subsequent elements are placed
+        head-to-tail, as when they are drawn, so the points in all lists after the initial one are not the same as the
+        points of the corresponding element.
+
+        :return: the as-drawn points of each Segment.
+        :rtype: list[list[point]]
+        """
+        point_lists = list()
+        end = to_point((0, 0))
+        for element in self:
+            point_lists.append([point + end for point in element.points])
+            end += element.end
+        return point_lists
+
+    @property
+    def bounds(self):
+        """Return the lower left and upper right points of the smallest rectangle that encloses the points of all
+        elements in the SegmentList.
+
+        The calculation assumes that the first element starts at (0, 0) and that subsequent elements are placed
+        head-to-tail, as when they are drawn; see :meth:`points`.
+
+        :return: the lower left and upper right points.
+        :rtype: tuple[point]
+        """
+        all_points = [p for element_points in self.points for p in element_points]  # Make a flat list of all points
+        xy = np.vstack(all_points).T  # points.shape = (2, num_points)
+        return to_point((np.min(xy[0]), np.min(xy[1]))), to_point((np.max(xy[0]), np.max(xy[1])))
 
 
 class Segment(object):

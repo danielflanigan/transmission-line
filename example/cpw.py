@@ -75,9 +75,15 @@ def main(output_directory):
     feedline = tl.SegmentList([left_border, left_launch, left_transition, feedline_cpw, right_transition,
                                right_launch, right_border])
 
+    print(f"The start point of the feedline is {feedline.start}")
+    print(f"The end point of the feedline is {feedline.end}")
+    print(f"The span of the feedline is {feedline.span}")
+    print(f"The bounding box of the feedline is defined by {feedline.bounds[0]} at lower left "
+          f"and {feedline.bounds[1]} at upper right.")
     print(f"The total feedline length, including bends, is {feedline.length}")
     # Draw the feedline in the main cell on the given layer, with the start point at the given origin. This puts the
-    # bend in this CPW near (0, 0).
+    # bend in this CPW near (0, 0). We could have also placed the initial point at (-3000, 0) and drawn the feedline at
+    # (0, 0) to obtain the same result.
     feedline.draw(cell=main_cell, origin=(-3000, 0), layer=0)
 
     # Draw another negative CPW with an elbow coupler next to the feedline. This structure is a section of CPW that has
