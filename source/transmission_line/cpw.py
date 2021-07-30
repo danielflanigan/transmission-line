@@ -292,7 +292,7 @@ class CPW(SmoothedSegment):
     Structures may represent either metal or its absence.
     """
 
-    def __init__(self, outline, trace, gap, ground=None, radius=None, points_per_degree=DEFAULT_POINTS_PER_DEGREE,
+    def __init__(self, outline, trace, gap, ground=None, radius=None, points_per_degree=POINTS_PER_DEGREE,
                  round_to=None, max_points=GDSII_POLYGON_MAX_POINTS):
         """Instantiate without drawing any structures.
 
