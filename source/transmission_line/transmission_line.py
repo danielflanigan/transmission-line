@@ -351,6 +351,11 @@ class Segment(object):
         return self._points[-1]
 
     @property
+    def span(self):
+        """The difference between start and end points: span = end - start, in the vector sense."""
+        return self.end - self.start
+
+    @property
     def x(self):
         """A ``numpy.ndarray`` containing the x-coordinates of all points (read-only)."""
         return np.array([point[0] for point in self.points])
