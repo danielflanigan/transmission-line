@@ -1,10 +1,19 @@
-"""Thin-film superconducting transmission lines are sensitive to the presence of vortices.
+"""Thin-film superconducting circuits are sensitive to the presence of magnetic flux vortices, which can become
+trapped (even in type-I films) as the film is cooled below the superconducting transition temperature. To reduce the
+unwanted effects of such vortices, such as dissipation at microwave frequencies, a standard practice is to add a
+'mesh' of holes in the superconducting ground plane through which the magnetic flux lines can pass instead of forming
+vortices.
 
-Draw mesh.
+This module contains functions that calculate the centers of a hole mesh around various types of Segments defined
+elsewhere in the library. Because the ideal mesh dimensions (of order ten microns) are much smaller than typical
+superconducting microwave resonators (of order ten millimeters), a well-designed mesh may include thousands of holes per
+resonator. Adding such a mesh to an entire device would produce a large GDS file, and the functions here can be used to
+create the dense mesh only next to the sensitive devices, where it is needed.
 """
 import numpy as np
 
 import transmission_line as tl
+
 
 def smoothed_segment(segment, center_to_first_row, mesh_spacing, num_mesh_rows, at_least_one_column=False):
     """Calculate and return the center points of a mesh surrounding a SmoothedSegment.
@@ -100,8 +109,7 @@ def transition(segment, start_center_to_first_row, end_center_to_first_row, mesh
     return mesh_centers
 
 
-def rounded_open(segment, center_to_first_row, mesh_spacing, num_mesh_rows, at_least_one_column=False,
-                 open_at_end=True, extend=0):
+def rounded_open(segment, center_to_first_row, mesh_spacing, num_mesh_rows, at_least_one_column=False, extend=0):
     """Calculate and return the center points of a mesh surrounding a single RoundedOpen Segment that forms the end of a
     transmission line.
 
@@ -112,14 +120,17 @@ def rounded_open(segment, center_to_first_row, mesh_spacing, num_mesh_rows, at_l
     :param int num_mesh_rows: the number of rows of mesh in the direction perpendicular to the segment.
     :param bool at_least_one_column: if True, transitions shorter than the mesh spacing will still have one
                                      corresponding mesh column; otherwise, they will not.
-    :param bool open_at_end: if True (default), the open is at the end; if False, it is at the start.
     :param float extend: continue the mesh this distance past the open end.
     :return: a list of mesh center points.
     :rtype: list[point]
     """
     # ToDo: this code is copied from transition above; maybe it can be shared or simplified
     mesh_centers = list()
-    v = segment.end - segment.start
+    if segment.open_at_start:
+        ultimate, penultimate = segment.points
+    else:
+        penultimate, ultimate = segment.points
+    v = ultimate - penultimate  # This vector points toward the open end
     length = np.linalg.norm(v) + extend
     phi = np.arctan2(v[1], v[0])
     R = np.array([[np.cos(phi), -np.sin(phi)],

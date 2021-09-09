@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2021-09-09
+### Changed
+- This version is not backwards-compatible: select which structures to draw using boolean arguments to the `draw` method instead of by choosing a class.
+- Harmonized `Segment.draw` methods to return a tuple of structures; by default `SegmentList.draw` returns a flat list of these structures.
+
+### Added
+- Classes to draw CPW with any combination of trace, gap, and ground structures.
+
+### Removed
+- All Negative and Positive CPW classes.
+
 ## [0.5.4] - 2021-07-30
 ### Added
 - Properties `points` and `bounds` added to SegmentList

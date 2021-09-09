@@ -8,70 +8,60 @@ from __future__ import absolute_import, division, print_function
 import gdspy
 import numpy as np
 
-from transmission_line.transmission_line import (POINTS_PER_DEGREE, MAX_POINTS, Segment,
-                                                 SmoothedSegment, smooth, to_point)
+from transmission_line.transmission_line import POINTS_PER_DEGREE, MAX_POINTS, Segment, SmoothedSegment, to_point
 
 
 class Trace(SmoothedSegment):
-    """A single wire.
+    """A single wire with bends rounded to avoid sharp corners."""
 
-    The structure may include overlaps at either end, and these overlap lengths are not counted when calculating the
-    segment length. This is useful to avoid double-counting when an electrical connection is formed by an overlap.
-    """
+    def __init__(self, outline, trace, radius=None, points_per_degree=POINTS_PER_DEGREE, round_to=None):
+        """Instantiate without drawing.
 
-    def __init__(self, outline, trace, start_overlap=0, end_overlap=0, radius=None,
-                 points_per_degree=POINTS_PER_DEGREE, round_to=None):
-        """
         :param iterable[indexable] outline: the outline points, before smoothing; see :class:`SmoothedSegment`.
         :param float trace: the width of the trace.
-        :param float start_overlap: the overlap length at the start.
-        :param float end_overlap: the overlap length at the end.
         :param radius: if None, use twice the width; see :func:`smooth`.
         :type radius: float or None
         :param float points_per_degree: the default is POINTS_PER_DEGREE; see :func:`smooth`.
         :param float round_to: see :class:`SmoothedSegment`.
         """
         self.trace = trace
-        self.start_overlap = start_overlap
-        self.end_overlap = end_overlap
         if radius is None:
             radius = 2 * trace
         super(Trace, self).__init__(outline=outline, radius=radius, points_per_degree=points_per_degree,
                                     round_to=round_to)
 
-    def draw(self, cell, origin, layer=0, datatype=0, max_points=MAX_POINTS, gdsii_path=False):
+    def draw(self, cell, origin, layer=0, datatype=0, start_overlap=0, end_overlap=0, max_points=MAX_POINTS,
+             gdsii_path=False):
         """Draw this trace into the given cell as a GDSII polygon (or path) and return the drawn object.
 
-        By default, :class:`gdspy.FlexPath` draws a polygon; to draw a path, pass `gdsii_path=True`. The overlap
-        regions, whose length is not counted by :meth:`Segment.length`, are passed to :class:`gdspy.FlexPath` as
-        `ends=(start_overlap, end_overlap)`.
+        By default, :class:`gdspy.FlexPath` draws a polygon; to draw a path (including a zero-width path),
+        use `gdsii_path=True`. The overlap regions, whose length is not counted by :meth:`Segment.length`,
+        are passed to :class:`gdspy.FlexPath` as `ends=(start_overlap, end_overlap)`.
 
         :param cell: the cell into which to draw the trace, if not None.
         :type cell: gdspy.Cell or None
         :param point origin: the point at which to place the start of the trace.
         :param int layer: the GDSII layer.
         :param int datatype: the GDSII datatype.
-        :param int max_points: polygons with more than this number of points are fractured by gdspy; the default value
-                               overrides the gdspy default of 199.
-        :param bool gdsii_path: passed to :class:`gdspy.FlexPath`; if True, draw a path; if False, draw a polygon.
+        :param float start_overlap: the overlap length at the start.
+        :param float end_overlap: the overlap length at the end.
+        :param int max_points: polygons with more than this number of points are fractured.
+        :param bool gdsii_path: passed to :class:`gdspy.FlexPath`; if True, create and return a GDSII path; if False,
+                                convert the path to a Polygon.
         :return: the drawn object.
-        :rtype: gdspy.FlexPath
+        :rtype: tuple[gdspy.PolygonSet or gdspy.FlexPath]
         """
         points = [to_point(origin) + point for point in self.points]
-        flexpath = gdspy.FlexPath(points=points, width=self.trace, layer=layer, datatype=datatype,
-                                  max_points=max_points, ends=(self.start_overlap, self.end_overlap),
-                                  gdsii_path=gdsii_path)
+        if gdsii_path:
+            element = gdspy.FlexPath(points=points, width=self.trace, layer=layer, datatype=datatype,
+                                     max_points=max_points, ends=(start_overlap, end_overlap), gdsii_path=True)
+        else:
+            element = gdspy.FlexPath(points=points, width=self.trace, layer=layer, datatype=datatype,
+                                     max_points=max_points, ends=(start_overlap, end_overlap)).to_polygonset()
+
         if cell is not None:
-            cell.add(element=flexpath)
-        return flexpath
-
-
-class TraceBlank(Trace):
-    """A placeholder for a single wire that draws nothing."""
-
-    def draw(self, cell, origin, layer=0, datatype=0, max_points=MAX_POINTS, gdsii_path=False):
-        """Draw nothing and return nothing."""
-        pass
+            cell.add(element=element)
+        return (element,)
 
 
 class TraceTransition(Segment):
@@ -119,12 +109,4 @@ class TraceTransition(Segment):
         polygon = gdspy.Polygon(points=points_rotated_shifted, layer=layer, datatype=datatype)
         if cell is not None:
             cell.add(element=polygon)
-        return polygon
-
-
-class TraceTransitionBlank(TraceTransition):
-    """A placeholder for a single wire transition that draws nothing."""
-
-    def draw(self, cell, origin, layer=0, datatype=0):
-        """Draw nothing and return nothing."""
-        pass
+        return (polygon,)

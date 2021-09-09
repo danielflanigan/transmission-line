@@ -9,6 +9,7 @@ inputs must already be converted to package format, and to describe return types
 uses 'point' and 'list[point]'.
 """
 from __future__ import absolute_import, division, print_function
+import warnings
 
 import gdspy
 from matplotlib.font_manager import FontProperties
@@ -18,19 +19,19 @@ import numpy as np
 # The maximum number of polygon vertices in the original GDSII specification is 200. This is the (conservative) default
 # value used by gdspy.
 SAFE_GDSII_POLYGON_POINTS = 199
+
 # The maximum number of polygon vertices allowed by the GDSII file structure is 8191. Some GDSII readers may open files
 # that contain more points, but, anecdotally, some will fail to load such designs. This value is the package default.
 MAX_GDSII_POLYGON_POINTS = 8190
+
 # Both of the limits above are one less than the maximum, possibly because the vertex that closes the polygon is stored
 # in the file but does not have to be passed to gdspy, which closes polygons automatically.
-
 # The value below is the default used when drawing polygons throughout this package.
 MAX_POINTS = MAX_GDSII_POLYGON_POINTS
 # It can be changed for a single `draw` call by passing a different value of `max_points` or it can be changed globally:
 # from transmission_line import transmission_line as tl
 # tl.MAX_POINTS = tl.SAFE_GDSII_POLYGON_POINTS  # For use with old GDSII readers
 # tl.MAX_POINTS = 0  # gdspy treats 0 as infinity, and will not fracture polygons to reduce the number of vertices.
-
 
 # This is the default number of points per degree of arc used by :func:`smooth` to bend transmission lines.
 POINTS_PER_DEGREE = 1
@@ -224,7 +225,7 @@ class SegmentList(list):
     ``segment_list[:4].end`` gives the endpoint of the first four elements joined head to tail.
     """
 
-    def draw(self, cell, origin, individual_keywords=None, **global_keywords):
+    def draw(self, cell, origin, flatten=True, individual_keywords=None, **global_keywords):
         """Draw all of the segments contained in this SegmentList into the given cell, connected head to tail, and
         and return the drawn structures.
 
@@ -234,14 +235,20 @@ class SegmentList(list):
         :param cell: The cell into which the result is drawn, if not None.
         :type cell: gdspy.Cell or None
         :param indexable origin: The point to use for the origin of the first Segment.
+        :param bool flatten: if False, return a list of tuples of the objects returned by the :meth:`draw` methods of
+                             each :class:`Segment`, in order; if True, flatten the returned list so that its elements
+                             are the structures themselves.
         :param individual_keywords: keys are integer indices and values are dicts of parameters that update the
                                     the :meth:`draw` call for the Segment at that index; use this to override the global
                                     keywords or to pass keywords that not all Segments accept.
         :type individual_keywords: dict or None
         :param global_keywords: keyword arguments passed to every :meth:`Segment.draw`.
-        :return: the drawn structures ordered from start to end.
+        :return: the drawn structures ordered from start to end; see the `flatten` keyword.
         :rtype: list
         """
+        if individual_keywords is not None and (min(individual_keywords.keys()) < 0 or
+                                                max(individual_keywords.keys()) > len(self)):
+            raise ValueError("Index in individual_keywords is outside valid range.")
         drawn = list()
         # It's crucial to avoiding input modification that this also makes a copy.
         point = to_point(origin)
@@ -249,7 +256,16 @@ class SegmentList(list):
             keywords = global_keywords.copy()
             if individual_keywords is not None:
                 keywords.update(individual_keywords.get(index, dict()))
-            drawn.append(segment.draw(cell=cell, origin=point, **keywords))
+            tuple_of_structures = segment.draw(cell=cell, origin=point, **keywords)
+            if flatten:
+                try:
+                    drawn.extend(tuple_of_structures)
+                except TypeError:
+                    warnings.warn(f"Appending instead of flattening the non-iterable object returned by Segment at"
+                                  f" index {index:d}: {tuple_of_structures!r}")
+                    drawn.append(tuple_of_structures)
+            else:
+                drawn.append(tuple_of_structures)
             # NB: using += produces an error when casting int to float.
             point = point + segment.end
         return drawn
@@ -370,16 +386,18 @@ class Segment(object):
         """The length of the Segment, calculating by adding the lengths of straight lines connecting the points."""
         return np.sum(np.hypot(np.diff(self.x), np.diff(self.y)))
 
-    def draw(self, cell, origin, **kwargs):
-        """Draw this Segment in the given cell, if one is specified.
+    def draw(self, cell, origin, max_points=MAX_POINTS, **keywords):
+        """Create and return polygons or other structures and add them to the given cell, if one is specified.
 
-        Subclasses implement this method to draw themselves. They should return the drawn structure(s). If possible,
-        passing `cell=None` should draw the structure without adding it to a cell. This is useful for temporary
-        structures used for boolean operations, for example.
+        Subclasses implement this method to draw themselves. They should return an iterable of the drawn structure(
+        s), and these structures should not contain more than `max_points` points. Passing `cell=None` should draw
+        the structures without adding them to a call, which is useful for temporary structures used for boolean
+        operations.
 
-        :param cell: the cell into which this segment will be drawn.
+        :param cell: the cell into which this Segment will be drawn, if not None.
         :type cell: gdspy.Cell or None
-        :param indexable origin: draw the segment relative to this point; the meaning depends on the segment type.
+        :param indexable origin: draw the Segment relative to this point, meaning that point (0, 0) of the Segment is
+                                 placed here.
         :return: subclasses should return an iterable of the drawn structure(s).
         :rtype: tuple
         """
